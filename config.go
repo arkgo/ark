@@ -2,16 +2,10 @@ package ark
 
 type (
 	configConfig struct {
-		msg string
-	}
+		Name string `toml:"name"`
+		Mode string `toml:"mode"`
 
-	// LoggerConfig 是日志配置类
-	LoggerConfig struct {
-		Driver  string `toml:"driver"`
-		Flag    string `toml:"flag"`
-		Console bool   `toml:"console"`
-		Level   string `toml:"level"`
-		Format  string `toml:"format"`
-		Setting Map    `toml:"setting"`
+		Logger LoggerConfig         `toml:"logger"`
+		Bus    map[string]BusConfig `toml:"bus"`
 	}
 )
