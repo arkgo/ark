@@ -6,5 +6,5 @@ import (
 
 // Register 是注册新服务
 func Register(name string, config Map) {
-	Debug("register service", name)
+	ark.Logger.Debug("register service", name)
 }

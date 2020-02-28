@@ -49,32 +49,14 @@ type (
 
 	busModule struct {
 		mutex    sync.Mutex
-		config   map[string]BusConfig
 		drivers  map[string]BusDriver
 		connects map[string]BusConnect
-
 		hashring *hashring.HashRing
 	}
 )
 
-func newBus(config map[string]BusConfig) *busModule {
-
-	if config == nil {
-		config = map[string]BusConfig{
-			DEFAULT: BusConfig{
-				Driver: DEFAULT, Weight: 1,
-			},
-		}
-	} else {
-		for _, v := range config {
-			if v.Driver == "" {
-				v.Driver = DEFAULT
-			}
-		}
-	}
-
+func newBus() *busModule {
 	return &busModule{
-		config:   config,
 		drivers:  make(map[string]BusDriver, 0),
 		connects: make(map[string]BusConnect, 0),
 	}
@@ -111,7 +93,7 @@ func (module *busModule) connecting(name string, config BusConfig) (BusConnect, 
 }
 func (module *busModule) initing() {
 	weights := make(map[string]int)
-	for name, config := range module.config {
+	for name, config := range ark.Config.Bus {
 
 		connect, err := module.connecting(name, config)
 		if err != nil {

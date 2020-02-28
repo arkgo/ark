@@ -53,20 +53,13 @@ type (
 		mutex   sync.Mutex
 		drivers map[string]LoggerDriver
 
-		config  LoggerConfig
 		connect LoggerConnect
 	}
 )
 
-func newLogger(config LoggerConfig) *loggerModule {
-	if config.Driver == "" {
-		config.Driver = DEFAULT
-		config.Console = true
-	}
-
+func newLogger() *loggerModule {
 	return &loggerModule{
 		drivers: map[string]LoggerDriver{},
-		config:  config,
 	}
 }
 
@@ -102,7 +95,7 @@ func (module *loggerModule) connecting(config LoggerConfig) (LoggerConnect, erro
 
 //初始化
 func (module *loggerModule) initing() {
-	connect, err := module.connecting(module.config)
+	connect, err := module.connecting(ark.Config.Logger)
 	if err != nil {
 		panic("[日志]连接失败：" + err.Error())
 	}
@@ -165,7 +158,7 @@ func (module *loggerModule) tostring(args ...Any) string {
 }
 
 func (module *loggerModule) output(args ...Any) {
-	if module.config.Console {
+	if ark.Config.Logger.Console {
 		ts := time.Now().Format("2006-01-02 15:04:05")
 		format, args := module.formating(args)
 		if format != "" {

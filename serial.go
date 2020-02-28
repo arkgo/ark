@@ -4,7 +4,6 @@ import (
 	"encoding/base64"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/arkgo/asset/fastid"
 	"github.com/arkgo/asset/hashid"
@@ -31,46 +30,13 @@ type (
 	}
 )
 
-func newSerial(config serialConfig) *serialModule {
-	if config.Text == "" {
-		config.Text = "01234AaBbCcDdEeFfGgHhIiJjKkLlMmNnOoPpQqRrSsTtUuVvWwXxYyZz56789+/"
-	}
-	if config.Digit == "" {
-		//这个简化去掉了不容易识别的字符
-		config.Digit = "abcdefghijkmnpqrstuvwxyz123456789ACDEFGHJKLMNPQRSTUVWXYZ"
-	}
-	if config.Length <= 0 {
-		config.Length = 7
-	}
+func newSerial() *serialModule {
+	serial := &serialModule{}
 
-	if config.Start != "" {
-		t, e := time.Parse("2006-01-02", config.Start)
-		if e == nil {
-			config.begin = t.UnixNano()
-		} else {
-			config.begin = time.Date(2020, 3, 1, 0, 0, 0, 0, time.Local).UnixNano()
-		}
-	} else {
-		config.begin = time.Date(2020, 3, 1, 0, 0, 0, 0, time.Local).UnixNano()
-	}
-	if config.Time <= 0 {
-		config.Time = 43 //41位=毫秒，约69年可用，42=138年，43=276年，44位=552年
-	}
-	if config.Node <= 0 {
-		config.Node = 7 //8=256
-	}
-	if config.Seq <= 0 {
-		config.Seq = 13 //12=4096，13位=819.2万
-	}
-
-	serial := &serialModule{
-		config: config,
-	}
-
-	serial.fastid = fastid.NewFastIDWithConfig(config.Time, config.Node, config.Seq, config.begin, ark.Node.config.Id)
-	serial.textCoder = base64.NewEncoding(config.Text)
+	serial.fastid = fastid.NewFastIDWithConfig(ark.Config.Serial.Time, ark.Config.Serial.Node, ark.Config.Serial.Seq, ark.Config.Serial.begin, ark.Config.Node.Id)
+	serial.textCoder = base64.NewEncoding(ark.Config.Serial.Text)
 	coder, err := hashid.NewWithData(&hashid.HashIDData{
-		Alphabet: config.Digit, Salt: config.Salt, MinLength: config.Length,
+		Alphabet: ark.Config.Serial.Digit, Salt: ark.Config.Serial.Salt, MinLength: ark.Config.Serial.Length,
 	})
 	if err != nil {
 		panic("[序列]无效的配置")
@@ -136,8 +102,8 @@ func (module *serialModule) Enhashs(digits []int64, lengths ...int) string {
 		length := lengths[0]
 
 		hd := hashid.NewData()
-		hd.Alphabet = module.config.Digit
-		hd.Salt = module.config.Salt
+		hd.Alphabet = ark.Config.Serial.Digit
+		hd.Salt = ark.Config.Serial.Salt
 		if length > 0 {
 			hd.MinLength = length
 		}
@@ -162,8 +128,8 @@ func (module *serialModule) Dehashs(code string, lengths ...int) []int64 {
 		length := lengths[0]
 
 		hd := hashid.NewData()
-		hd.Alphabet = module.config.Digit
-		hd.Salt = module.config.Salt
+		hd.Alphabet = ark.Config.Serial.Digit
+		hd.Salt = ark.Config.Serial.Salt
 		if length > 0 {
 			hd.MinLength = length
 		}
@@ -200,7 +166,7 @@ func Encrypts(texts []string) string {
 	return ark.Serial.Encrypts(texts)
 }
 func Decrypts(code string) []string {
-	ark.Serial.Decrypts(code)
+	return ark.Serial.Decrypts(code)
 }
 
 func Enhash(digit int64, lengths ...int) string {

@@ -5,8 +5,7 @@ import (
 )
 
 var (
-	Name    string
+	ark     *arkCore
 	Mode    Env
-	Config  configConfig
 	Setting Map
 )
