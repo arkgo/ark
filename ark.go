@@ -8,14 +8,18 @@ type (
 	arkCore struct {
 		Config *arkConfig
 
-		Node    *nodeModule
-		Serial  *serialModule
-		Basic   *basicModule
-		Logger  *loggerModule
+		Node   *nodeModule
+		Serial *serialModule
+		Basic  *basicModule
+
+		Logger *loggerModule
+		Mutex  *mutexModule
+
 		Bus     *busModule
 		Store   *storeModule
 		Session *sessionModule
 		Cache   *cacheModule
+		Data    *dataModule
 	}
 	arkConfig struct {
 		Name string `toml:"name"`
@@ -28,14 +32,16 @@ type (
 
 		Serial serialConfig `toml:"serial"`
 
-		Logger LoggerConfig         `toml:"logger"`
-		Bus    map[string]BusConfig `toml:"bus"`
+		Logger LoggerConfig `toml:"logger"`
+		Mutex  MutexConfig  `toml:"mutex"`
 
+		Bus   map[string]BusConfig   `toml:"bus"`
 		File  FileConfig             `toml:"file"`
 		Store map[string]StoreConfig `toml:"store"`
 
 		Session map[string]SessionConfig `toml:"session"`
 		Cache   map[string]CacheConfig   `toml:"cache"`
+		Data    map[string]DataConfig    `toml:"data"`
 
 		Setting Map `toml:"setting"`
 	}
@@ -50,11 +56,17 @@ func Driver(name string, driver Any) {
 	switch drv := driver.(type) {
 	case LoggerDriver:
 		ark.Logger.Driver(name, drv)
+	case MutexDriver:
+		ark.Mutex.Driver(name, drv)
 	case BusDriver:
 		ark.Bus.Driver(name, drv)
 	case StoreDriver:
 		ark.Store.Driver(name, drv)
 	case SessionDriver:
 		ark.Session.Driver(name, drv)
+	case CacheDriver:
+		ark.Cache.Driver(name, drv)
+	case DataDriver:
+		ark.Data.Driver(name, drv)
 	}
 }

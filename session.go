@@ -27,9 +27,6 @@ type (
 		Workload int64
 	}
 
-	// SessionHandler 会话回调
-	SessionHandler func(string, []byte) error
-
 	// SessionConnect 会话连接
 	SessionConnect interface {
 		Open() error

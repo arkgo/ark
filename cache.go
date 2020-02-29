@@ -15,6 +15,7 @@ type (
 		Driver  string `toml:"driver"`
 		Weight  int    `toml:"weight"`
 		Prefix  string `toml:"prefix"`
+		Expiry  string `toml:"expiry"`
 		Setting Map    `toml:"setting"`
 	}
 	// CacheDriver 缓存驱动
@@ -38,8 +39,9 @@ type (
 
 		Read(string) (Any, error)
 		Write(key string, val Any, exps ...time.Duration) error
+		Exists(key string) (bool, error)
 		Delete(key string) error
-		Stepping(key string, num int64) (int64, error)
+		Serial(key string, step int64) (int64, error)
 		Keys(prefix string) ([]string, error)
 		Clear(prefix string) error
 	}
@@ -48,6 +50,7 @@ type (
 		mutex    sync.Mutex
 		drivers  map[string]CacheDriver
 		connects map[string]CacheConnect
+		weights  map[string]int
 		hashring *hashring.HashRing
 	}
 )
@@ -91,7 +94,10 @@ func (module *cacheModule) connecting(name string, config CacheConfig) (CacheCon
 func (module *cacheModule) initing() {
 	weights := make(map[string]int)
 	for name, config := range ark.Config.Cache {
-		weights[name] = config.Weight
+		if config.Weight > 0 {
+			//只有设置了权重的缓存才参与分布
+			weights[name] = config.Weight
+		}
 
 		connect, err := module.connecting(name, config)
 		if err != nil {
@@ -106,6 +112,7 @@ func (module *cacheModule) initing() {
 	}
 
 	//hashring分片
+	module.weights = weights
 	module.hashring = hashring.New(weights)
 }
 func (module *cacheModule) exiting() {
@@ -114,30 +121,56 @@ func (module *cacheModule) exiting() {
 	}
 }
 
-func (module *cacheModule) Read(con, key string) (Any, error) {
-	if con == "" && module.hashring != nil {
+func (module *cacheModule) Read(key string, cons ...string) (Any, error) {
+	con := DEFAULT
+	if len(cons) > 0 && cons[0] != "" {
+		con = cons[0]
+	} else if module.hashring != nil {
 		con = module.hashring.Locate(key)
 	}
+
 	if connect, ok := module.connects[con]; ok {
 		return connect.Read(key)
 	}
 	return nil, errors.New("读取缓存失败")
 }
 
-func (module *cacheModule) Write(con, key string, val Any, exp time.Duration) error {
-	if con == "" && module.hashring != nil {
+func (module *cacheModule) Exists(key string, cons ...string) (bool, error) {
+	con := DEFAULT
+	if len(cons) > 0 && cons[0] != "" {
+		con = cons[0]
+	} else if module.hashring != nil {
 		con = module.hashring.Locate(key)
 	}
+
+	if connect, ok := module.connects[con]; ok {
+		return connect.Exists(key)
+	}
+	return false, errors.New("读取缓存失败")
+}
+
+func (module *cacheModule) Write(key string, val Any, exp time.Duration, cons ...string) error {
+	con := DEFAULT
+	if len(cons) > 0 && cons[0] != "" {
+		con = cons[0]
+	} else if module.hashring != nil {
+		con = module.hashring.Locate(key)
+	}
+
 	if connect, ok := module.connects[con]; ok {
 		return connect.Write(key, val, exp)
 	}
 	return errors.New("写入缓存失败")
 }
 
-func (module *cacheModule) Delete(con, key string) error {
-	if con == "" && module.hashring != nil {
+func (module *cacheModule) Delete(key string, cons ...string) error {
+	con := DEFAULT
+	if len(cons) > 0 && cons[0] != "" {
+		con = cons[0]
+	} else if module.hashring != nil {
 		con = module.hashring.Locate(key)
 	}
+
 	if connect, ok := module.connects[con]; ok {
 		return connect.Delete(key)
 	}
@@ -145,74 +178,105 @@ func (module *cacheModule) Delete(con, key string) error {
 	return errors.New("删除缓存失败")
 }
 
-func (module *cacheModule) Stepping(con, key string, step int64) (int64, error) {
-	if con == "" && module.hashring != nil {
+func (module *cacheModule) Serial(key string, step int64, cons ...string) (int64, error) {
+	con := DEFAULT
+	if len(cons) > 0 && cons[0] != "" {
+		con = cons[0]
+	} else if module.hashring != nil {
 		con = module.hashring.Locate(key)
 	}
+
 	if connect, ok := module.connects[con]; ok {
-		return connect.Stepping(key, step)
+		return connect.Serial(key, step)
 	}
 
 	return int64(0), errors.New("删除缓存失败")
 }
 
-func (module *cacheModule) Keys(con, prefix string) ([]string, error) {
-	if connect, ok := module.connects[con]; ok {
-		return connect.Keys(prefix)
-	}
+func (module *cacheModule) Keys(prefix string, cons ...string) ([]string, error) {
 
-	return nil, errors.New("清理缓存失败")
+	//如果未指定连接，就清理所有参与分布的
+	if len(cons) > 0 {
+		con := cons[0]
+		if connect, ok := module.connects[con]; ok {
+			return connect.Keys(prefix)
+		}
+	} else {
+		keys := []string{}
+		for k, _ := range module.weights {
+			if connect, ok := module.connects[k]; ok {
+				ks, e := connect.Keys(prefix)
+				if e == nil {
+					keys = append(keys, ks...)
+				}
+			}
+		}
+		return keys, nil
+	}
+	return nil, errors.New("获取缓存键失败")
 }
 
-func (module *cacheModule) Clear(con, prefix string) error {
-	if connect, ok := module.connects[con]; ok {
-		return connect.Clear(prefix)
+func (module *cacheModule) Clear(prefix string, cons ...string) error {
+	//如果未指定连接，就清理所有参与分布的
+	if len(cons) > 0 {
+		con := cons[0]
+		if connect, ok := module.connects[con]; ok {
+			return connect.Clear(prefix)
+		}
+	} else {
+		for k, _ := range module.weights {
+			if connect, ok := module.connects[k]; ok {
+				connect.Clear(prefix)
+			}
+		}
 	}
-
-	return errors.New("清理缓存失败")
+	return nil
 }
 
 func Cache(key string, vals ...Any) Any {
 	if len(vals) > 0 {
-		err := ark.Cache.Write("", key, vals[0], 0)
-		if err == nil {
-			return vals[0]
+		val := vals[0]
+		if val == nil {
+			//空值就是删除啦
+			ark.Cache.Delete(key)
+			return nil
+		} else {
+			err := ark.Cache.Write(key, val, 0)
+			if err == nil {
+				return val
+			}
+			return nil
 		}
-		return nil
 	} else {
-		any, err := ark.Cache.Read("", key)
+		any, err := ark.Cache.Read(key)
 		if err != nil {
 			return nil
 		}
 		return any
 	}
 }
-func CacheKeys(prefix string, conns ...string) []string {
-	con := DEFAULT
-	if len(conns) > 0 {
-		con = conns[0]
+func Cached(key string, cons ...string) bool {
+	yes, err := ark.Cache.Exists(key, cons...)
+	if err != nil {
+		return false
 	}
-	keys, err := ark.Cache.Keys(con, prefix)
+	return yes
+}
+
+func CacheKeys(prefix string, cons ...string) []string {
+	keys, err := ark.Cache.Keys(prefix, cons...)
 	if err != nil {
 		return []string{}
 	}
 	return keys
 }
 
-func CacheClear(prefix string, conns ...string) error {
-	con := DEFAULT
-	if len(conns) > 0 {
-		con = conns[0]
-	}
-	return ark.Cache.Clear(con, prefix)
+func CacheClear(prefix string, cons ...string) error {
+	return ark.Cache.Clear(prefix, cons...)
 }
 
-func Stepping(key string, step int64, conns ...string) int64 {
-	con := "" //自动选项
-	if len(conns) > 0 {
-		con = conns[0]
-	}
-	num, err := ark.Cache.Stepping(con, key, step)
+func Sequence(key string, step int64, cons ...string) int64 {
+	num, err := ark.Cache.Serial(key, step, cons...)
 	if err != nil {
 		return int64(0)
 	}

@@ -121,6 +121,10 @@ func config() *arkConfig {
 		config.Serial.Seq = 13 //12=4096，13位=819.2万
 	}
 
+	//默认锁配置
+	if config.Mutex.Driver == "" {
+		config.Mutex.Driver = DEFAULT
+	}
 	//日志默认配置
 	if config.Logger.Driver == "" {
 		config.Logger.Driver = DEFAULT
@@ -201,9 +205,15 @@ func config() *arkConfig {
 			if v.Driver == "" {
 				v.Driver = DEFAULT
 			}
+			if v.Weight == 0 {
+				//默认参与分布，否则请设置为-1
+				v.Weight = 1
+			}
 			config.Cache[k] = v
 		}
 	}
+
+	//数据库，没有默认库
 
 	Setting = config.Setting
 
@@ -226,10 +236,12 @@ func initing() {
 	ark.Serial = newSerial()
 	ark.Basic = newBasic()
 	ark.Logger = newLogger()
+	ark.Mutex = newMutex()
 	ark.Bus = newBus()
 	ark.Store = newStore()
 	ark.Session = newSession()
 	ark.Cache = newCache()
+	ark.Data = newData()
 }
 
 func builtin() {
