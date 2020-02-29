@@ -158,8 +158,11 @@ func (module *loggerModule) tostring(args ...Any) string {
 }
 
 //output是为了直接输出到控制台，不管是否启用控制台
+
 func (module *loggerModule) output(args ...Any) {
-	if ark.Config.Logger.Console == false {
+	if ark.Config.Logger.Console && module.connect != nil {
+		module.Info(args...)
+	} else {
 		ts := time.Now().Format("2006-01-02 15:04:05")
 		format, args := module.formating(args)
 		if format != "" {
