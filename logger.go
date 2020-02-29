@@ -119,10 +119,10 @@ func (module *loggerModule) exiting() {
 
 func (module *loggerModule) formating(args []Any) (string, []Any) {
 	format := ""
-	if len(args) > 0 {
+	if len(args) > 1 {
 		if vv, ok := args[0].(string); ok {
 			ccc := strings.Count(vv, "%") - strings.Count(vv, "%%")
-			if ccc == (len(args) - 1) {
+			if ccc > 0 && ccc == (len(args)-1) {
 				format = vv
 				args = args[1:]
 			}
@@ -157,8 +157,9 @@ func (module *loggerModule) tostring(args ...Any) string {
 	return strings.Join(vs, " ")
 }
 
+//output是为了直接输出到控制台，不管是否启用控制台
 func (module *loggerModule) output(args ...Any) {
-	if ark.Config.Logger.Console {
+	if ark.Config.Logger.Console == false {
 		ts := time.Now().Format("2006-01-02 15:04:05")
 		format, args := module.formating(args)
 		if format != "" {
@@ -180,7 +181,7 @@ func (module *loggerModule) Debug(args ...Any) {
 		if format != "" {
 			module.connect.Debugf(format, args...)
 		} else {
-			s := module.tostring(args)
+			s := module.tostring(args...)
 			module.connect.Debug(s)
 		}
 	} else {
@@ -195,7 +196,7 @@ func (module *loggerModule) Trace(args ...Any) {
 		if format != "" {
 			module.connect.Tracef(format, args...)
 		} else {
-			s := module.tostring(args)
+			s := module.tostring(args...)
 			module.connect.Trace(s)
 		}
 	} else {
@@ -206,12 +207,11 @@ func (module *loggerModule) Trace(args ...Any) {
 //信息
 func (module *loggerModule) Info(args ...Any) {
 	if module.connect != nil {
-
 		format, args := module.formating(args)
 		if format != "" {
 			module.connect.Infof(format, args...)
 		} else {
-			s := module.tostring(args)
+			s := module.tostring(args...)
 			module.connect.Info(s)
 		}
 	} else {
@@ -226,7 +226,7 @@ func (module *loggerModule) Warning(args ...Any) {
 		if format != "" {
 			module.connect.Warningf(format, args...)
 		} else {
-			s := module.tostring(args)
+			s := module.tostring(args...)
 			module.connect.Warning(s)
 		}
 	} else {
@@ -241,7 +241,7 @@ func (module *loggerModule) Error(args ...Any) {
 		if format != "" {
 			module.connect.Errorf(format, args...)
 		} else {
-			s := module.tostring(args)
+			s := module.tostring(args...)
 			module.connect.Error(s)
 		}
 	} else {

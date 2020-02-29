@@ -36,15 +36,14 @@ type (
 		Open() error
 		Health() (BusHealth, error)
 		Close() error
-		Start() error
 
 		Event(string, BusHandler) error
 		Queue(string, int, BusHandler) error
 
-		Publish(name string, data []byte) error
-		DeferredPublish(name string, data []byte, delay time.Duration) error
-		Enqueue(name string, data []byte) error
-		DeferredEnqueue(name string, data []byte, delay time.Duration) error
+		Start() error
+
+		Publish(name string, data []byte, delays ...time.Duration) error
+		Enqueue(name string, data []byte, delays ...time.Duration) error
 	}
 
 	busModule struct {
@@ -164,10 +163,7 @@ func (module *busModule) Publish(name string, value Map, delays ...time.Duration
 		locate = module.hashring.Locate(name)
 	}
 	if connect, ok := module.connects[locate]; ok {
-		if len(delays) > 0 {
-			return connect.DeferredPublish(name, data, delays[0])
-		}
-		return connect.Publish(name, data)
+		return connect.Publish(name, data, delays...)
 	}
 	return errors.New("发布失败")
 }
@@ -189,10 +185,7 @@ func (module *busModule) Enqueue(name string, value Map, delays ...time.Duration
 		locate = module.hashring.Locate(name)
 	}
 	if connect, ok := module.connects[locate]; ok {
-		if len(delays) > 0 {
-			return connect.DeferredEnqueue(name, data, delays[0])
-		}
-		return connect.Enqueue(name, data)
+		return connect.Enqueue(name, data, delays...)
 	}
 
 	return errors.New("列队失败")
@@ -200,10 +193,7 @@ func (module *busModule) Enqueue(name string, value Map, delays ...time.Duration
 
 func (module *busModule) PublishTo(bus string, name string, data []byte, delays ...time.Duration) error {
 	if connect, ok := module.connects[bus]; ok {
-		if len(delays) > 0 {
-			return connect.DeferredPublish(name, data, delays[0])
-		}
-		return connect.Publish(name, data)
+		return connect.Publish(name, data, delays...)
 	}
 
 	return errors.New("发布失败")
@@ -211,10 +201,7 @@ func (module *busModule) PublishTo(bus string, name string, data []byte, delays 
 
 func (module *busModule) EnqueueTo(bus string, name string, data []byte, delays ...time.Duration) error {
 	if connect, ok := module.connects[bus]; ok {
-		if len(delays) > 0 {
-			return connect.DeferredEnqueue(name, data, delays[0])
-		}
-		return connect.Enqueue(name, data)
+		return connect.Enqueue(name, data, delays...)
 	}
 
 	return errors.New("列队失败")

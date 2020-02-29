@@ -42,8 +42,8 @@ type (
 		Exists(key string) (bool, error)
 		Delete(key string) error
 		Serial(key string, step int64) (int64, error)
-		Keys(prefix ...string) ([]string, error)
-		Clear(prefix ...string) error
+		Keys(prefixs ...string) ([]string, error)
+		Clear(prefixs ...string) error
 	}
 
 	cacheModule struct {

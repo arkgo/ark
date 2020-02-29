@@ -5,7 +5,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/arkgo/asset/util"
 	. "github.com/arkgo/base"
 )
 
@@ -30,7 +29,7 @@ type (
 		Health() (MutexHealth, error)
 		Close() error
 
-		Lock(key string, expiriy time.Duration) error
+		Lock(key string, expiries ...time.Duration) error
 		Unlock(key string) error
 	}
 
@@ -44,21 +43,12 @@ type (
 		drivers map[string]MutexDriver
 
 		connect MutexConnect
-		expiry  time.Duration
 	}
 )
 
 func newMutex() *mutexModule {
-	expiry := time.Second * 2
-	if ark.Config.Mutex.Expiry != "" {
-		if d, err := util.ParseDuration(ark.Config.Mutex.Expiry); err == nil {
-			expiry = d
-		}
-	}
-
 	return &mutexModule{
 		drivers: map[string]MutexDriver{},
-		expiry:  expiry,
 	}
 }
 
@@ -118,11 +108,7 @@ func (module *mutexModule) exiting() {
 
 func (module *mutexModule) Lock(key string, expiries ...time.Duration) error {
 	if module.connect != nil {
-		expiry := module.expiry
-		if len(expiries) > 0 {
-			expiry = expiries[0]
-		}
-		return module.Lock(key, expiry)
+		return module.Lock(key, expiries...)
 	}
 	return errors.New("无效互斥连接")
 }

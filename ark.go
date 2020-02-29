@@ -26,7 +26,7 @@ type (
 
 		Session *sessionModule
 
-		running bool
+		readied, running bool
 	}
 	arkConfig struct {
 		Name string `toml:"name"`
@@ -55,7 +55,7 @@ type (
 )
 
 func (ark *arkCore) Ready() {
-	if ark.running {
+	if ark.readied {
 		return
 	}
 
@@ -68,22 +68,27 @@ func (ark *arkCore) Ready() {
 	ark.Data.initing()
 	ark.Session.initing()
 
-	ark.Logger.Info("%s node %d started", ark.Config.Name, ark.Config.Node.Id)
+	ark.readied = true
+}
+func (ark *arkCore) Start() {
+	if ark.running {
+		return
+	}
 
+	//需要监听端口什么的，就需要start，主要是http，node端口，啥的
+	//因为有时候，会一些单独程序，需要连接库，但是不需要坚挺端口，比如，导入工具
+
+	ark.Logger.output("%s node %d started", ark.Config.Name, ark.Config.Node.Id)
 	ark.running = true
 }
-
-func (ark *arkCore) Go() {
-	ark.Ready()
+func (ark *arkCore) Waiting() {
 	exitChan := make(chan os.Signal, 1)
 	signal.Notify(exitChan, os.Kill, os.Interrupt, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 	<-exitChan
-	ark.Stop()
 }
-
 func (ark *arkCore) Stop() {
 
-	ark.Logger.Info("%s node %d stopped", ark.Config.Name, ark.Config.Node.Id)
+	ark.Logger.output("%s node %d stopped", ark.Config.Name, ark.Config.Node.Id)
 
 	ark.Session.exiting()
 	ark.Data.exiting()
@@ -96,8 +101,21 @@ func (ark *arkCore) Stop() {
 	ark.Logger.exiting()
 }
 
+func (ark *arkCore) Go() {
+	ark.Ready()
+	ark.Start()
+	ark.Waiting()
+	ark.Stop()
+}
+
 func Ready() {
 	ark.Ready()
+}
+func Start() {
+	ark.Start()
+}
+func Stop() {
+	ark.Stop()
 }
 func Go() {
 	ark.Go()
