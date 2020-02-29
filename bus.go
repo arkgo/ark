@@ -43,7 +43,7 @@ type (
 
 		Publish(name string, data []byte) error
 		DeferredPublish(name string, data []byte, delay time.Duration) error
-		Enqueue(name string, data []byte, delays ...time.Duration) error
+		Enqueue(name string, data []byte) error
 		DeferredEnqueue(name string, data []byte, delay time.Duration) error
 	}
 
@@ -89,7 +89,7 @@ func (module *busModule) connecting(name string, config BusConfig) (BusConnect, 
 	if driver, ok := module.drivers[config.Driver]; ok {
 		return driver.Connect(name, config)
 	}
-	panic("[日志]不支持的驱动" + config.Driver)
+	panic("[总线]不支持的驱动" + config.Driver)
 }
 func (module *busModule) initing() {
 	weights := make(map[string]int)

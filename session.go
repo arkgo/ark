@@ -15,6 +15,7 @@ type (
 		Driver  string `toml:"driver"`
 		Weight  int    `toml:"weight"`
 		Prefix  string `toml:"prefix"`
+		Expiry  string `toml:"expiry"`
 		Setting Map    `toml:"setting"`
 	}
 	// SessionDriver 会话驱动
@@ -34,7 +35,7 @@ type (
 		Close() error
 
 		Read(id string) (Map, error)
-		Write(id string, value Map, expiry time.Duration) error
+		Write(id string, value Map, expiries ...time.Duration) error
 		Delete(id string) error
 		Clear() error
 	}
@@ -81,7 +82,7 @@ func (module *sessionModule) connecting(name string, config SessionConfig) (Sess
 	if driver, ok := module.drivers[config.Driver]; ok {
 		return driver.Connect(name, config)
 	}
-	panic("[日志]不支持的驱动" + config.Driver)
+	panic("[会话]不支持的驱动" + config.Driver)
 }
 func (module *sessionModule) initing() {
 	weights := make(map[string]int)

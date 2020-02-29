@@ -42,8 +42,8 @@ type (
 		Exists(key string) (bool, error)
 		Delete(key string) error
 		Serial(key string, step int64) (int64, error)
-		Keys(prefix string) ([]string, error)
-		Clear(prefix string) error
+		Keys(prefix ...string) ([]string, error)
+		Clear(prefix ...string) error
 	}
 
 	cacheModule struct {
@@ -89,7 +89,7 @@ func (module *cacheModule) connecting(name string, config CacheConfig) (CacheCon
 	if driver, ok := module.drivers[config.Driver]; ok {
 		return driver.Connect(name, config)
 	}
-	panic("[日志]不支持的驱动" + config.Driver)
+	panic("[缓存]不支持的驱动" + config.Driver)
 }
 func (module *cacheModule) initing() {
 	weights := make(map[string]int)

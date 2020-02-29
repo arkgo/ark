@@ -1,6 +1,10 @@
 package ark
 
 import (
+	"os"
+	"os/signal"
+	"syscall"
+
 	. "github.com/arkgo/base"
 )
 
@@ -15,11 +19,14 @@ type (
 		Logger *loggerModule
 		Mutex  *mutexModule
 
-		Bus     *busModule
-		Store   *storeModule
+		Bus   *busModule
+		Store *storeModule
+		Cache *cacheModule
+		Data  *dataModule
+
 		Session *sessionModule
-		Cache   *cacheModule
-		Data    *dataModule
+
+		running bool
 	}
 	arkConfig struct {
 		Name string `toml:"name"`
@@ -47,9 +54,53 @@ type (
 	}
 )
 
-// Run 是启动方法
-func Run() {
-	ark.Logger.Debug("ark running")
+func (ark *arkCore) Ready() {
+	if ark.running {
+		return
+	}
+
+	ark.Logger.initing()
+	ark.Mutex.initing()
+
+	ark.Bus.initing()
+	ark.Store.initing()
+	ark.Cache.initing()
+	ark.Data.initing()
+	ark.Session.initing()
+
+	ark.Logger.Info("%s node %d started", ark.Config.Name, ark.Config.Node.Id)
+
+	ark.running = true
+}
+
+func (ark *arkCore) Go() {
+	ark.Ready()
+	exitChan := make(chan os.Signal, 1)
+	signal.Notify(exitChan, os.Kill, os.Interrupt, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+	<-exitChan
+	ark.Stop()
+}
+
+func (ark *arkCore) Stop() {
+
+	ark.Logger.Info("%s node %d stopped", ark.Config.Name, ark.Config.Node.Id)
+
+	ark.Session.exiting()
+	ark.Data.exiting()
+	ark.Cache.exiting()
+
+	ark.Store.exiting()
+	ark.Bus.exiting()
+
+	ark.Mutex.exiting()
+	ark.Logger.exiting()
+}
+
+func Ready() {
+	ark.Ready()
+}
+func Go() {
+	ark.Go()
 }
 
 func Driver(name string, driver Any) {

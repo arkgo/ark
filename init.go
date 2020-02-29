@@ -11,8 +11,7 @@ import (
 )
 
 func init() {
-	initing()
-	builtin()
+	build()
 }
 
 func loading(file string, out Any) error {
@@ -24,7 +23,9 @@ func loading(file string, out Any) error {
 }
 
 func config() *arkConfig {
-	config := &arkConfig{}
+	config := &arkConfig{
+		Name: "ark", Mode: "dev",
+	}
 
 	cfgfile := "config.toml"
 	if len(os.Args) >= 2 {
@@ -229,8 +230,9 @@ func config() *arkConfig {
 // 	return config, nil
 // }
 
-func initing() {
+func build() {
 	ark = &arkCore{}
+
 	ark.Config = config()
 	ark.Node = newNode()
 	ark.Serial = newSerial()
@@ -239,13 +241,12 @@ func initing() {
 	ark.Mutex = newMutex()
 	ark.Bus = newBus()
 	ark.Store = newStore()
-	ark.Session = newSession()
 	ark.Cache = newCache()
 	ark.Data = newData()
-}
+	ark.Session = newSession()
 
-func builtin() {
 	OK = Result(0, "ok", "成功")
 	Fail = Result(-1, "fail", "失败")
 	Retry = Result(-2, "retry", "请稍后再试")
+
 }
