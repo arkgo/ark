@@ -252,3 +252,8 @@ func EnqueueTo(bus string, name string, value Map, delays ...time.Duration) erro
 func EnqueueDataTo(bus string, name string, data []byte, delays ...time.Duration) error {
 	return ark.Bus.EnqueueTo(bus, name, data, delays...)
 }
+
+// Trigger 触发器，待处理
+func Trigger(name string, values ...Map) error {
+	return nil
+}
