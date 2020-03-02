@@ -44,43 +44,32 @@ type (
 		Health() (StoreHealth, error)
 		Close() error
 
-		Base() StoreBase
+		Upload(target string, metadata Map) (File, Files, error)
+		Download(file File) (string, error)
+		Remove(file File) error
+
+		Browse(file File, name string, expiries ...time.Duration) (string, error)
+		Preview(file File, w, h, t int64, expiries ...time.Duration) (string, error)
 	}
 	StoreHealth struct {
 		Workload int64
 	}
-	StoreBase interface {
-		Close() error
-		Erred() error
 
-		Upload(target string, metadatas ...Map) (StoreFile, StoreFiles, error)
-		Download(code string) string
-		Remove(code string) error
-
-		Browse(code string, name string, expiry ...time.Duration) string
-		Preview(code string, w, h, t int64, expiry ...time.Duration) string
-	}
-
-	StoreCode struct {
-		code string
-
-		Base string
-		Type string
-		Hash string
-		Size int64
-	}
-	StoreFile interface {
+	File interface {
 		Code() string
 		Hash() string
 		Name() string
+		Type() string
 		Size() int64
 	}
-	StoreFiles []StoreFile
+	Files []File
 
 	storeFile struct {
 		code string
+		conn string
 		hash string
 		name string
+		tttt string
 		size int64
 	}
 )
@@ -160,7 +149,7 @@ func (module *storeModule) exiting() {
 }
 
 //返回文件Base对象
-func (module *storeModule) Base(names ...string) StoreBase {
+func (module *storeModule) getConnect(names ...string) StoreConnect {
 	name := DEFAULT
 	if len(names) > 0 {
 		name = names[0]
@@ -172,34 +161,41 @@ func (module *storeModule) Base(names ...string) StoreBase {
 	}
 
 	if connect, ok := module.connects[name]; ok {
-		return connect.Base()
+		return connect
 	}
-	panic("[存储]无效存储连接")
+
+	return nil
 }
 
 //上传文件，是不是随便选一个库，还是选第一个库
-func (module *storeModule) Upload(target string, metadata Map, bases ...string) (StoreFile, StoreFiles, error) {
-	sb := module.Base(bases...)
-	return sb.Upload(target, metadata)
+func (module *storeModule) Upload(target string, metadata Map, bases ...string) (File, Files, error) {
+	conn := module.getConnect(bases...)
+	if conn == nil {
+		return nil, nil, errors.New("无效连接")
+	}
+	return conn.Upload(target, metadata)
 }
 
 //下载文件，集成file和store
-func (module *storeModule) Download(code string) string {
-	coding := module.Decode(code)
-	if coding == nil {
-		return ""
+func (module *storeModule) Download(code string) (string, error) {
+	file := module.Decode(code)
+	if file == nil {
+		return "", errors.New("解码失败")
 	}
 
-	if coding.isStore() {
-		sb := module.Base(coding.Base)
-		return sb.Download(code)
-	} else {
-		_, _, sFile, err := module.storaging(coding)
-		if err == nil {
-			return sFile
+	if file.conn != "" {
+		conn := module.getConnect(file.conn)
+		if conn == nil {
+			return "", errors.New("无效连接")
 		}
+		return conn.Download(file)
+	} else {
+		_, _, sFile, err := module.storaging(file)
+		if err != nil {
+			return "", err
+		}
+		return sFile, nil
 	}
-	return ""
 }
 
 func (module *storeModule) Remove(code string) error {
@@ -208,9 +204,12 @@ func (module *storeModule) Remove(code string) error {
 		return errors.New("无效数据")
 	}
 
-	if data.isStore() {
-		sb := module.Base(data.Base)
-		return sb.Remove(code)
+	if data.conn != "" {
+		conn := module.getConnect(data.conn)
+		if conn == nil {
+			return errors.New("无效连接")
+		}
+		return conn.Remove(data)
 	} else {
 		_, _, sFile, err := module.storaging(data)
 		if err != nil {
@@ -222,7 +221,7 @@ func (module *storeModule) Remove(code string) error {
 }
 
 //保存文件到 file, 而不是store
-func (module *storeModule) Save(target string) (StoreFile, StoreFiles, error) {
+func (module *storeModule) Save(target string) (File, Files, error) {
 	stat, err := os.Stat(target)
 	if err != nil {
 		return nil, nil, err
@@ -236,7 +235,7 @@ func (module *storeModule) Save(target string) (StoreFile, StoreFiles, error) {
 			return nil, nil, err
 		}
 
-		files := StoreFiles{}
+		files := Files{}
 		for _, file := range dirs {
 			if !file.IsDir() {
 
@@ -246,15 +245,15 @@ func (module *storeModule) Save(target string) (StoreFile, StoreFiles, error) {
 					return nil, nil, errors.New("hash error")
 				}
 
-				ext := util.Extension(file.Name())
+				file := module.Filing("", hash, file.Name(), file.Size())
 
-				coding := module.Encode("", ext, hash, file.Size())
-				err := module.Storage(source, coding)
+				// coding := module.Encode("", ext, hash, file.Size())
+				err := module.Storage(source, file)
 				if err != nil {
 					return nil, nil, err
 				}
 
-				file := module.NewFile(coding.Coding(), coding.Hash, file.Name(), file.Size())
+				//file := module.NewFile(coding.Coding(), coding.Hash, file.Name(), file.Size())
 				files = append(files, file)
 			}
 		}
@@ -268,62 +267,21 @@ func (module *storeModule) Save(target string) (StoreFile, StoreFiles, error) {
 			return nil, nil, errors.New("hash error")
 		}
 
-		ext := util.Extension(stat.Name())
-		coding := module.Encode("", ext, hash, stat.Size())
-		err := module.Storage(target, coding)
+		file := module.Filing("", hash, stat.Name(), stat.Size())
+
+		err := module.Storage(target, file)
 		if err != nil {
 			return nil, nil, err
 		}
 
-		file := module.NewFile(coding.Coding(), coding.Hash, stat.Name(), stat.Size())
+		// file := module.NewFile(coding.Coding(), coding.Hash, stat.Name(), stat.Size())
 		return file, nil, nil
 	}
 
-	//data := &Coding{
-	//	fmt.Sprintf("%v", Config.Node.Id),
-	//	fmt.Sprintf("%v", file["extension"]),
-	//	fmt.Sprintf("%v", file["hash"]),
-	//	file["length"].(int64),
-	//}
-
-	//code := Encoding(data.Base, data.Type, data.Hash, data.Size)
-	//
-	//_, _, sFile, err := module.storaging(data)
-	//if err != nil {
-	//	return "", err
-	//}
-	//
-	////如果文件已经存在
-	//if _,err := os.Stat(sFile); err == nil {
-	//	return code, nil
-	//}
-	//
-	////打开上传的文件
-	//tempfile := file["tempfile"].(string)
-	//fff, err := os.Open(tempfile)
-	//if err != nil {
-	//	return "", err
-	//}
-	//defer fff.Close()
-	//
-	////创建文件
-	//save, err := os.OpenFile(sFile, os.O_WRONLY|os.O_CREATE, 0777)
-	//if err != nil {
-	//	return "", err
-	//}
-	//defer save.Close()
-	//
-	////复制文件
-	//_, err = io.Copy(save, fff)
-	//if err != nil {
-	//	return "", err
-	//}
-	//
-	//return code, nil
 }
 
 //file存储文件
-func (module *storeModule) Storage(source string, coding *StoreCode) error {
+func (module *storeModule) Storage(source string, coding *storeFile) error {
 	_, _, sFile, err := module.storaging(coding)
 	if err != nil {
 		return err
@@ -359,12 +317,12 @@ func (module *storeModule) Storage(source string, coding *StoreCode) error {
 
 // file生成获取缩图并返回路径，
 // 待优化要不要判断一下节点，？
-func (module *storeModule) Thumbnail(code string, w, h, t int64) (string, *StoreCode, error) {
+func (module *storeModule) Thumbnail(code string, w, h, t int64) (string, File, error) {
 	data := module.Decode(code)
 	if data == nil {
 		return "", nil, errors.New("error code")
 	}
-	if data.IsImage() == false {
+	if data.isimage() == false {
 		//非图片不处理缩图
 		return "", nil, errors.New("not image")
 	}
@@ -383,7 +341,7 @@ func (module *storeModule) Thumbnail(code string, w, h, t int64) (string, *Store
 
 	//这里要处理，是file，或是 store，获取原文件不一样
 	sfile := ""
-	if data.isFile() {
+	if data.conn == "" {
 		//获取存储的文件
 		_, _, fff, err := module.storaging(data)
 		if err != nil {
@@ -392,9 +350,12 @@ func (module *storeModule) Thumbnail(code string, w, h, t int64) (string, *Store
 			sfile = fff
 		}
 	} else {
-		sb := module.Base(data.Base)
-		fff := sb.Download(code)
-		if err := sb.Erred(); err != nil {
+		conn := module.getConnect(data.conn)
+		if conn == nil {
+			return "", nil, errors.New("无效连接")
+		}
+		fff, err := conn.Download(data)
+		if err != nil {
 			return "", nil, err
 		} else {
 			sfile = fff
@@ -439,8 +400,8 @@ func (module *storeModule) Thumbnail(code string, w, h, t int64) (string, *Store
 }
 
 //获取file的存储路径信息
-func (module *storeModule) storaging(data *StoreCode) (string, string, string, error) {
-	if ring := module.hashring.Locate(data.Hash); ring != "" {
+func (module *storeModule) storaging(data *storeFile) (string, string, string, error) {
+	if ring := module.hashring.Locate(data.hash); ring != "" {
 
 		spath := path.Join(ark.Config.File.Storage, ring)
 		sfile := path.Join(spath, data.Fullname())
@@ -458,18 +419,18 @@ func (module *storeModule) storaging(data *StoreCode) (string, string, string, e
 }
 
 //获取file的缩图路径信息
-func (module *storeModule) thumbnailing(data *StoreCode, width, height, tttt int64) (string, string, string, error) {
-	if ring := module.hashring.Locate(data.Hash); ring != "" {
+func (module *storeModule) thumbnailing(data *storeFile, width, height, tttt int64) (string, string, string, error) {
+	if ring := module.hashring.Locate(data.hash); ring != "" {
 
 		// data.Type = "jpg"	//不能直接改，因为是*data，所以扩展名不同的，生成缩图就有问题了，ring变了
 		//namenoext := strings.TrimSuffix(data.Name, "."+data.Type)
 
 		ext := "jpg"
-		if data.Type != "" {
-			ext = data.Type
+		if data.tttt != "" {
+			ext = data.tttt
 		}
 
-		tpath := path.Join(ark.Config.File.Thumbnail, ring, data.Hash)
+		tpath := path.Join(ark.Config.File.Thumbnail, ring, data.hash)
 		tname := fmt.Sprintf("%d-%d-%d.%s", width, height, tttt, ext)
 		tfile := path.Join(tpath, tname)
 
@@ -487,61 +448,61 @@ func (module *storeModule) thumbnailing(data *StoreCode, width, height, tttt int
 
 /* StoreCode 存储编码 begin */
 
-func (sc *StoreCode) Coding() string {
-	if sc.code != "" {
-		sc.code = Encrypt(fmt.Sprintf("%s\t%s\t%s\t%d", sc.Base, sc.Type, sc.Hash, sc.Size))
-	}
-	return sc.code
-}
+// func (sc *storeFile) Coding() string {
+// 	if sc.code != "" {
+// 		sc.code = Encrypt(fmt.Sprintf("%s\t%s\t%s\t%d", sc.Base, sc.Type, sc.Hash, sc.Size))
+// 	}
+// 	return sc.code
+// }
 
-func (sc *StoreCode) Mimetype() string {
+func (sc *storeFile) Mimetype() string {
 	if sc != nil {
-		return ark.Basic.Mimetype(sc.Type)
+		return ark.Basic.Mimetype(sc.tttt)
 	}
 	return ""
 }
-func (sc *StoreCode) Fullname() string {
+func (sc *storeFile) Fullname() string {
 	if sc != nil {
-		if sc.Type != "" {
-			return fmt.Sprintf("%s.%s", sc.Hash, sc.Type)
+		if sc.tttt != "" {
+			return fmt.Sprintf("%s.%s", sc.hash, sc.tttt)
 		}
-		return sc.Hash
+		return sc.hash
 	}
 	return ""
 }
 
-//func (sc *StoreCode) Node() int {
+//func (sc *storeFile) Node() int {
 //	if vv,err := strconv.ParseInt(sc.Base, 10, 32); err == nil {
 //		return int(vv)
 //	}
 //	return 0
 //}
 
-func (sc *StoreCode) isFile() bool {
-	return sc.Base == ""
-}
-func (sc *StoreCode) isStore() bool {
-	return sc.Base != ""
-}
+// func (sc *storeFile) isFile() bool {
+// 	return sc.Base == ""
+// }
+// func (sc *storeFile) isStore() bool {
+// 	return sc.Base != ""
+// }
 
-func (sc *StoreCode) IsImage() bool {
-	return sc.Type == "jpg" ||
-		sc.Type == "png" ||
-		sc.Type == "gif" ||
-		sc.Type == "bmp"
+func (sc *storeFile) isimage() bool {
+	return sc.tttt == "jpg" ||
+		sc.tttt == "png" ||
+		sc.tttt == "gif" ||
+		sc.tttt == "bmp"
 }
-func (sc *StoreCode) IsVideo() bool {
-	return sc.Type == "mp4" ||
-		sc.Type == "mkv" ||
-		sc.Type == "wmv" ||
-		sc.Type == "ts" ||
-		sc.Type == "mpeg" ||
-		sc.Type == "ts"
+func (sc *storeFile) isvideo() bool {
+	return sc.tttt == "mp4" ||
+		sc.tttt == "mkv" ||
+		sc.tttt == "wmv" ||
+		sc.tttt == "ts" ||
+		sc.tttt == "mpeg" ||
+		sc.tttt == "ts"
 }
-func (sc *StoreCode) IsAudio() bool {
-	return sc.Type == "mp3" ||
-		sc.Type == "wma" ||
-		sc.Type == "wav"
+func (sc *storeFile) isaudio() bool {
+	return sc.tttt == "mp3" ||
+		sc.tttt == "wma" ||
+		sc.tttt == "wav"
 }
 
 /* StoreCode 存储编码 end */
@@ -557,19 +518,28 @@ func (sf *storeFile) Hash() string {
 func (sf *storeFile) Name() string {
 	return sf.name
 }
+func (sf *storeFile) Type() string {
+	return sf.tttt
+}
 func (sf *storeFile) Size() int64 {
 	return sf.size
 }
 
 /* storeFile 实体 end */
 
-func (module *storeModule) NewFile(code, hash, name string, size int64) StoreFile {
-	return &storeFile{code, hash, name, size}
-}
-func (module *storeModule) Filing(base, name, hash string, size int64) StoreFile {
-	tttt := util.Extension(name)
-	coding := module.Encode(base, tttt, hash, size)
-	return module.NewFile(coding.Coding(), hash, name, size)
+// func (module *storeModule) NewFile(code, hash, name string, size int64) File {
+// 	return &storeFile{code, hash, name, size}
+// }
+func (module *storeModule) Filing(conn, hash, name string, size int64) *storeFile {
+	file := &storeFile{}
+	file.conn = conn
+	file.hash = hash
+	file.name = name
+	file.tttt = util.Extension(name)
+	file.size = size
+	file.code = module.Encode(file)
+
+	return file
 }
 
 func (module *storeModule) Uploading(file string) Map {
@@ -597,20 +567,10 @@ func (module *storeModule) Uploading(file string) Map {
 	}
 }
 
-//如果hash过长，就直接放在前面
-//HASH短，就参与加密
-func (module *storeModule) Encode(base, tttt, hash string, size int64) *StoreCode {
-	//tttt := util.Extension(name)	//扩展名
-	return &StoreCode{
-		"", base, tttt, hash, size,
-	}
-
-	//if len(hash) < 32 {
-	//	return Encrypt(fmt.Sprintf("%s\t%s\t%s\t%d", base, tttt, hash, size))
-	//}
-	//return hash + "$" + Encrypt(fmt.Sprintf("%s\t%s\t%s\t%d", base, tttt, "", size))
+func (module *storeModule) Encode(file *storeFile) string {
+	return Encrypt(fmt.Sprintf("%s\t%s\t%s\t%d", file.conn, file.tttt, file.hash, file.size))
 }
-func (module *storeModule) Decode(code string) *StoreCode {
+func (module *storeModule) Decode(code string) *storeFile {
 	str := ark.Serial.Decrypt(code)
 	if str == "" {
 		return nil
@@ -621,11 +581,19 @@ func (module *storeModule) Decode(code string) *StoreCode {
 		return nil
 	}
 
-	coding := &StoreCode{Base: args[0], Type: args[1], Hash: args[2], Size: 0}
+	//Base: args[0], Type: args[1], Hash: args[2], Size: 0
+	file := &storeFile{}
+	file.conn = args[0]
+	file.tttt = args[1]
+	file.hash = args[2]
+	file.size = 0
 	if vv, err := strconv.ParseInt(args[3], 10, 64); err == nil {
-		coding.Size = vv
+		file.size = vv
 	}
-	return coding
+
+	file.code = code
+
+	return file
 }
 
 func (module *storeModule) Browse(code, name string, expires ...time.Duration) string {
@@ -638,10 +606,16 @@ func (module *storeModule) safeBrowse(code string, name string, id, ip string, e
 	if coding == nil {
 		return "[error code]"
 	}
-	if coding.isStore() {
-		if cfg, ok := ark.Config.Store[coding.Base]; ok {
+	if coding.conn != "" {
+		//使用远程访问
+		if cfg, ok := ark.Config.Store[coding.conn]; ok {
 			if cfg.Browse {
-				return module.Base(coding.Base).Browse(code, name, expires...)
+				conn := module.getConnect(coding.conn)
+				if conn == nil {
+					return ""
+				}
+				url, _ := conn.Browse(coding, name, expires...)
+				return url
 			}
 		}
 	}
@@ -695,10 +669,15 @@ func (module *storeModule) safePreview(code string, w, h, t int64, id, ip string
 	if coding == nil {
 		return "[error code]"
 	}
-	if coding.isStore() {
-		if cfg, ok := ark.Config.Store[coding.Base]; ok {
+	if coding.conn != "" {
+		if cfg, ok := ark.Config.Store[coding.conn]; ok {
 			if cfg.Preview {
-				return module.Base(coding.Base).Preview(code, w, h, t, expires...)
+				conn := module.getConnect(coding.conn)
+				if conn == nil {
+					return ""
+				}
+				url, _ := conn.Preview(coding, w, h, t, expires...)
+				return url
 			}
 		}
 	}
@@ -740,4 +719,8 @@ func (module *storeModule) safePreview(code string, w, h, t int64, id, ip string
 	// return Route("file.preview", Map{
 	// 	"{code}": code, "{size}": []int64{w, h, t}, "{ext}": "jpg", "token": token,
 	// })
+}
+
+func Filing(conn, hash, name string, size int64) File {
+	return ark.Store.Filing(conn, hash, name, size)
 }
