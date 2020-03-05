@@ -13,7 +13,7 @@ type (
 )
 
 var (
-	OK, Fail, Retry *Res
+	OK, Fail, Retry, Invalid *Res
 )
 
 func newResult(error string, args ...Any) *Res {

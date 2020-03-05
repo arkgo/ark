@@ -15,6 +15,7 @@ type (
 		Node   *nodeModule
 		Serial *serialModule
 		Basic  *basicModule
+		Logic  *logicModule
 
 		Logger *loggerModule
 		Mutex  *mutexModule
@@ -25,6 +26,7 @@ type (
 		Data  *dataModule
 
 		Session *sessionModule
+		Http    *httpModule
 
 		readied, running bool
 	}
@@ -45,10 +47,13 @@ type (
 		Bus   map[string]BusConfig   `toml:"bus"`
 		File  FileConfig             `toml:"file"`
 		Store map[string]StoreConfig `toml:"store"`
+		Cache map[string]CacheConfig `toml:"cache"`
+		Data  map[string]DataConfig  `toml:"data"`
 
 		Session map[string]SessionConfig `toml:"session"`
-		Cache   map[string]CacheConfig   `toml:"cache"`
-		Data    map[string]DataConfig    `toml:"data"`
+		Http    HttpConfig               `toml:"http"`
+		Site    map[string]SiteConfig    `toml:"site"`
+		hosts   map[string]string
 
 		Setting Map `toml:"setting"`
 	}
@@ -67,6 +72,7 @@ func (ark *arkCore) Ready() {
 	ark.Cache.initing()
 	ark.Data.initing()
 	ark.Session.initing()
+	ark.Http.initing()
 
 	ark.readied = true
 }
@@ -90,6 +96,7 @@ func (ark *arkCore) Stop() {
 
 	ark.Logger.output("%s node %d stopped", ark.Config.Name, ark.Config.Node.Id)
 
+	ark.Http.exiting()
 	ark.Session.exiting()
 	ark.Data.exiting()
 	ark.Cache.exiting()

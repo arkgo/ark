@@ -407,8 +407,8 @@ func (module *basicModule) cryptoMethod(name string) (func(Any) Any, func(Any) A
 
 //一定要返回*Result，
 //因为在定义参数的时候，可以自定义empty,error两个属性， 返回自定义的结果
-func (module *basicModule) Mapping(config Map, data Map, value Map, argn bool, pass bool, ctxs ...Ctx) *Res {
-	var ctx Ctx
+func (module *basicModule) Mapping(config Map, data Map, value Map, argn bool, pass bool, ctxs ...context) *Res {
+	var ctx context
 	if len(ctxs) > 0 {
 		ctx = ctxs[0]
 	}
@@ -915,6 +915,6 @@ func Crypto(name string, config Map, overrides ...bool) {
 func Cryptos() map[string]Map {
 	return ark.Basic.Cryptos()
 }
-func Mapping(config Map, data Map, value Map, argn bool, pass bool, ctxs ...Ctx) *Res {
+func Mapping(config Map, data Map, value Map, argn bool, pass bool, ctxs ...context) *Res {
 	return ark.Basic.Mapping(config, data, value, argn, pass, ctxs...)
 }

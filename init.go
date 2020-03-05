@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path"
+	"strings"
 	"time"
 
 	"github.com/arkgo/asset/toml"
@@ -25,6 +26,7 @@ func loading(file string, out Any) error {
 func config() *arkConfig {
 	config := &arkConfig{
 		Name: "ark", Mode: "dev",
+		hosts: make(map[string]string),
 	}
 
 	cfgfile := "config.toml"
@@ -175,25 +177,6 @@ func config() *arkConfig {
 		config.Store[k] = c
 	}
 
-	//会话默认配置
-	if config.Session == nil {
-		config.Session = map[string]SessionConfig{
-			DEFAULT: SessionConfig{
-				Driver: DEFAULT, Weight: 1,
-			},
-		}
-	} else {
-		for k, v := range config.Session {
-			if v.Driver == "" {
-				v.Driver = DEFAULT
-			}
-			if v.Weight <= 0 {
-				v.Weight = 1
-			}
-			config.Session[k] = v
-		}
-	}
-
 	//默认缓存配置
 	if config.Cache == nil {
 		config.Cache = map[string]CacheConfig{
@@ -216,6 +199,115 @@ func config() *arkConfig {
 
 	//数据库，没有默认库
 
+	//会话默认配置
+	if config.Session == nil {
+		config.Session = map[string]SessionConfig{
+			DEFAULT: SessionConfig{
+				Driver: DEFAULT, Weight: 1,
+			},
+		}
+	} else {
+		for k, v := range config.Session {
+			if v.Driver == "" {
+				v.Driver = DEFAULT
+			}
+			if v.Weight <= 0 {
+				v.Weight = 1
+			}
+			config.Session[k] = v
+		}
+	}
+
+	//默认HTTP驱动
+	if config.Http.Driver == "" {
+		config.Http.Driver = DEFAULT
+	}
+	if config.Http.Port <= 0 || config.Http.Port > 65535 {
+		config.Http.Port = 80
+	}
+	if config.Http.Charset == "" {
+		config.Http.Charset = "utf-8"
+	}
+	if config.Http.Expiry == "" {
+		config.Http.Expiry = "30d"
+	}
+	if config.Http.MaxAge == "" {
+		config.Http.MaxAge = "365d"
+	}
+	if config.Http.Upload == "" {
+		config.Http.Upload = os.TempDir()
+	}
+	if config.Http.Static == "" {
+		config.Http.Static = "asset/statics"
+	}
+	if config.Http.Shared == "" {
+		config.Http.Static = "shared"
+	}
+
+	//http默认驱动
+	for k, v := range config.Site {
+		if v.Charset == "" {
+			v.Charset = config.Http.Charset
+		}
+		if v.Domain == "" {
+			v.Domain = config.Http.Domain
+		}
+		if v.Cookie == "" {
+			v.Cookie = config.Name
+		}
+		if v.Expiry == "" {
+			v.Expiry = config.Http.Expiry
+		}
+		if v.MaxAge == "" {
+			v.MaxAge = config.Http.MaxAge
+		}
+		if v.Hosts == nil {
+			v.Hosts = []string{}
+		}
+		if v.Host != "" {
+			if strings.Contains(v.Host, ".") {
+				v.Hosts = append(v.Hosts, v.Host)
+			} else {
+				v.Hosts = append(v.Hosts, v.Host+"."+v.Domain)
+			}
+		} else {
+			if len(v.Hosts) == 0 {
+				v.Hosts = append(v.Hosts, k+"."+v.Domain)
+			}
+		}
+
+		//还没有设置域名，自动来一波
+		if len(v.Hosts) == 0 && v.Domain != "" {
+			v.Hosts = append(v.Hosts, k+"."+v.Domain)
+		}
+		//待处理，这个权重是老代码复制，暂时不知道干什么用，
+		if v.Weights == nil || len(v.Weights) == 0 {
+			v.Weights = []int{}
+			for range v.Hosts {
+				v.Weights = append(v.Weights, 1)
+			}
+		}
+
+		if v.Format == "" {
+			v.Format = `{device}/{system}/{version}/{client}/{number}/{time}/{path}`
+		}
+
+		//记录http的所有域名
+		for _, host := range v.Hosts {
+			config.hosts[host] = k
+		}
+
+		config.Site[k] = v
+	}
+
+	//隐藏的空站点，不接域名
+	config.Site[""] = SiteConfig{Name: "空站点"}
+
+	//默认view驱动
+	if config.View.Driver == "" {
+		config.View.Driver = DEFAULT
+	}
+
 	Setting = config.Setting
 
 	return config
@@ -237,6 +329,8 @@ func build() {
 	ark.Node = newNode()
 	ark.Serial = newSerial()
 	ark.Basic = newBasic()
+	ark.Logic = newLogic()
+
 	ark.Logger = newLogger()
 	ark.Mutex = newMutex()
 	ark.Bus = newBus()
@@ -244,9 +338,10 @@ func build() {
 	ark.Cache = newCache()
 	ark.Data = newData()
 	ark.Session = newSession()
+	ark.Http = newHttp()
 
 	OK = Result(0, "ok", "成功")
 	Fail = Result(-1, "fail", "失败")
 	Retry = Result(-2, "retry", "请稍后再试")
-
+	Invalid = Result(-3, "invalid", "无效数据或请求")
 }
