@@ -114,14 +114,14 @@ func config() *arkConfig {
 	} else {
 		config.Serial.begin = time.Date(2020, 3, 1, 0, 0, 0, 0, time.Local).UnixNano()
 	}
-	if config.Serial.Time <= 0 {
-		config.Serial.Time = 43 //41位=毫秒，约69年可用，42=138年，43=276年，44位=552年
+	if config.Serial.TimeBits <= 0 {
+		config.Serial.TimeBits = 43 //41位=毫秒，约69年可用，42=138年，43=276年，44位=552年
 	}
-	if config.Serial.Node <= 0 {
-		config.Serial.Node = 7 //8=256
+	if config.Serial.NodeBits <= 0 {
+		config.Serial.NodeBits = 7 //8=256
 	}
-	if config.Serial.Seq <= 0 {
-		config.Serial.Seq = 13 //12=4096，13位=819.2万
+	if config.Serial.SeqBits <= 0 {
+		config.Serial.SeqBits = 13 //12=4096，13位=819.2万
 	}
 
 	//默认锁配置

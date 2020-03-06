@@ -7,6 +7,8 @@ import (
 
 	"github.com/arkgo/asset/fastid"
 	"github.com/arkgo/asset/hashid"
+
+	jsoniter "github.com/json-iterator/go"
 )
 
 type (
@@ -16,24 +18,25 @@ type (
 		Salt   string `toml:"salt"`
 		Length int    `toml:"length"`
 
-		begin int64
-		Start string `toml:"start"`
-		Time  uint   `toml:"timebits"`
-		Node  uint   `toml:"nodebits"`
-		Seq   uint   `toml:"seqbits"`
+		begin    int64
+		Start    string `toml:"start"`
+		TimeBits uint   `toml:"timeBits"`
+		NodeBits uint   `toml:"nodeBits"`
+		SeqBits  uint   `toml:"seqBits"`
 	}
 	serialModule struct {
 		config     serialConfig
 		fastid     *fastid.FastID
 		textCoder  *base64.Encoding
 		digitCoder *hashid.HashID
+		jsonCodec  jsoniter.API
 	}
 )
 
 func newSerial() *serialModule {
 	serial := &serialModule{}
 
-	serial.fastid = fastid.NewFastIDWithConfig(ark.Config.Serial.Time, ark.Config.Serial.Node, ark.Config.Serial.Seq, ark.Config.Serial.begin, ark.Config.Node.Id)
+	serial.fastid = fastid.NewFastIDWithConfig(ark.Config.Serial.TimeBits, ark.Config.Serial.NodeBits, ark.Config.Serial.SeqBits, ark.Config.Serial.begin, ark.Config.Node.Id)
 	serial.textCoder = base64.NewEncoding(ark.Config.Serial.Text)
 	coder, err := hashid.NewWithData(&hashid.HashIDData{
 		Alphabet: ark.Config.Serial.Digit, Salt: ark.Config.Serial.Salt, MinLength: ark.Config.Serial.Length,
@@ -42,6 +45,9 @@ func newSerial() *serialModule {
 		panic("[序列]无效的配置")
 	}
 	serial.digitCoder = coder
+
+	serial.jsonCodec = jsoniter.ConfigCompatibleWithStandardLibrary
+
 	return serial
 }
 
@@ -156,6 +162,13 @@ func (module *serialModule) Unique(prefixs ...string) string {
 	}
 }
 
+func (module *serialModule) Marshal(v interface{}) ([]byte, error) {
+	return module.jsonCodec.Marshal(v)
+}
+func (module *serialModule) Unmarshal(data []byte, v interface{}) error {
+	return module.jsonCodec.Unmarshal(data, v)
+}
+
 func Encrypt(text string) string {
 	return ark.Serial.Encrypt(text)
 }
@@ -191,4 +204,22 @@ func Serial() int64 {
 }
 func Unique(prefixs ...string) string {
 	return ark.Serial.Unique(prefixs...)
+}
+
+
+
+func  Marshal(v interface{}) ([]byte, error) {
+	return ark.Serial.jsonCodec.Marshal(v)
+}
+func Unmarshal(data []byte, v interface{}) error {
+	return ark.Serial.jsonCodec.Unmarshal(data, v)
+}
+
+
+
+func TextAlphabet() string {
+	return ark.Serial.config.Text
+}
+func DigitAlphabet() string {
+	return ark.Serial.config.Digit
 }

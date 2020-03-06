@@ -153,3 +153,7 @@ func (module *viewModule) Parse(body ViewBody) (string, error) {
 	}
 	return module.connect.Parse(body)
 }
+
+func Helper(name string, config Map, overrides ...bool) {
+	ark.View.Helper(name, config, overrides...)
+}

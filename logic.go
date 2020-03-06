@@ -29,6 +29,7 @@ type (
 		Name    string
 		Config  Map
 		Setting Map
+		Value   Map
 		Args    Map
 	}
 )
@@ -60,6 +61,95 @@ func (module *logicModule) Method(name string, config Map, overrides ...bool) {
 			module.methods[name] = config
 		}
 	}
+}
+
+func (module *logicModule) Invoke(name string, value Map, setting Map, ctxs ...context) (Map, *Res) {
+	var config Map
+	if vv, ok := module.methods[name]; ok {
+		config = vv
+	}
+
+	if config == nil {
+		return nil, Fail
+	}
+
+	// if ctx == nil {
+	// 	x := newContext()
+	// 	ctx = &x
+	// 	defer ctx.final()
+	// }
+
+	if value == nil {
+		value = Map{}
+	}
+	if setting == nil {
+		setting = Map{}
+	}
+	var ctx context
+	if len(ctxs) > 0 {
+		ctx = ctxs[0]
+	}
+
+	argn := false
+	if v, ok := config["argn"].(bool); ok {
+		argn = v
+	}
+
+	args := Map{}
+	if arging, ok := config["args"].(Map); ok {
+		res := ark.Basic.Mapping(arging, value, args, argn, false, ctx)
+		if res != nil {
+			return nil, res
+		}
+	}
+
+	logic := &Logic{
+		Name: name, Config: config, Setting: setting,
+		Value: value, Args: args,
+	}
+
+	data := Map{}
+	var result *Res
+
+	switch ff := config["action"].(type) {
+	case func(*Logic):
+		ff(logic)
+	case func(*Logic) *Res:
+		result = ff(logic)
+
+	case func(*Logic) bool:
+		data = Map{
+			"result": ff(logic),
+		}
+	case func(*Logic) Map:
+		data = ff(logic)
+	case func(*Logic) (Map, *Res):
+		data, result = ff(logic)
+	case func(*Logic) []Map:
+		items := ff(logic)
+		data = Map{"items": items}
+	case func(*Logic) ([]Map, *Res):
+		items, res := ff(logic)
+		data = Map{"items": items}
+		result = res
+	case func(*Logic) (int64, []Map):
+		count, items := ff(logic)
+		data = Map{"count": count, "items": items}
+	case func(*Logic) (Map, []Map):
+		item, items := ff(logic)
+		data = Map{"item": item, "items": items}
+	}
+
+	//参数解析
+	if dating, ok := config["data"].(Map); ok {
+		out := Map{}
+		err := ark.Basic.Mapping(dating, data, out, false, false, ctx)
+		if err == nil {
+			return out, result
+		}
+	}
+
+	return data, result
 }
 
 func (module *logicModule) Library(name string) *logicLibrary {

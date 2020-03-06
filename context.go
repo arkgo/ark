@@ -3,7 +3,6 @@ package ark
 import (
 	"crypto/sha1"
 	"encoding/base64"
-	"encoding/json"
 	"encoding/xml"
 	"fmt"
 	"io"
@@ -432,7 +431,7 @@ func (ctx *Http) formHandler() *Res {
 				ctx.Body = RawBody(body)
 
 				m := Map{}
-				err := json.Unmarshal(body, &m)
+				err := ark.Serial.Unmarshal(body, &m)
 				if err == nil {
 					//遍历JSON对象
 					for k, v := range m {
@@ -1096,6 +1095,23 @@ func (ctx *Http) Signer(key string) string {
 }
 
 //----------------------- 签名系统 end ---------------------------------
+
+// ------- 服务调用 -----------------
+func (ctx *Http) Invoke(name string, values ...Map) Map {
+	ctx.lastError = nil
+
+	value := Map{}
+	if len(values) > 0 {
+		value = values[0]
+	}
+
+	result, res := ark.Logic.Invoke(name, value, Map{}, ctx)
+	ctx.lastError = res
+
+	return result
+}
+
+//------- 服务调用 -----------------
 
 //远程存储代理
 func (ctx *Http) Remote(code string, names ...string) {

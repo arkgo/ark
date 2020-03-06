@@ -1,7 +1,6 @@
 package ark
 
 import (
-	"encoding/json"
 	"encoding/xml"
 	"fmt"
 	"io"
@@ -422,6 +421,25 @@ func (module *httpModule) initRouterActions() {
 			module.routerActions[name] = append(module.routerActions[name], v...)
 		}
 	}
+}
+func (module *httpModule) Routers(sites ...string) map[string]Map {
+	prefix := ""
+	if len(sites) > 0 {
+		prefix = sites[0] + "."
+	}
+
+	routers := make(map[string]Map)
+	for name, config := range module.routers {
+		if prefix == "" || strings.HasPrefix(name, prefix) {
+			mmm := Map{} //为了配置安全，复制数据
+			for k, v := range config {
+				mmm[k] = v
+			}
+			routers[name] = mmm
+		}
+	}
+
+	return routers
 }
 func (module *httpModule) Filter(name string, config Map, overrides ...bool) {
 	override := true
@@ -935,7 +953,7 @@ func (module *httpModule) bodyScript(ctx *Http, body httpScriptBody) {
 func (module *httpModule) bodyJson(ctx *Http, body httpJsonBody) {
 	res := ctx.response
 
-	bytes, err := json.Marshal(body.json)
+	bytes, err := ark.Serial.Marshal(body.json)
 	if err != nil {
 		//要不要发到统一的错误ctx.Error那里？再走一遍
 		http.Error(res, err.Error(), http.StatusInternalServerError)
@@ -952,7 +970,7 @@ func (module *httpModule) bodyJson(ctx *Http, body httpJsonBody) {
 func (module *httpModule) bodyJsonp(ctx *Http, body httpJsonpBody) {
 	res := ctx.response
 
-	bytes, err := json.Marshal(body.json)
+	bytes, err := ark.Serial.Marshal(body.json)
 	if err != nil {
 		//要不要发到统一的错误ctx.Error那里？再走一遍
 		http.Error(res, err.Error(), http.StatusInternalServerError)
@@ -1421,6 +1439,10 @@ func (module *httpModule) newSite(name string, roots ...string) *httpSite {
 	return &httpSite{module, name, root}
 }
 
+func (site *httpSite) Route(name string, args ...Map) string {
+	realName := fmt.Sprintf("%s.%s", site.name, name)
+	return ark.Http.url.Route(realName, args...)
+}
 func (site *httpSite) Router(name string, config Map, overrides ...bool) {
 	realName := fmt.Sprintf("%s.%s", site.name, name)
 	if site.root != "" {
@@ -1494,4 +1516,7 @@ func Site(name string, roots ...string) *httpSite {
 }
 func Route(name string, args ...Map) string {
 	return ark.Http.url.Route(name, args...)
+}
+func Routers(sites ...string) map[string]Map {
+	return ark.Http.Routers(sites...)
 }
