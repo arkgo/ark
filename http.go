@@ -212,6 +212,10 @@ func (module *httpModule) connecting(config HttpConfig) (HttpConnect, error) {
 }
 func (module *httpModule) initing() {
 
+	module.initRouterActions()
+	module.initFilterActions()
+	module.initHandlerActions()
+
 	connect, err := module.connecting(ark.Config.Http)
 	if err != nil {
 		panic("[HTTP]连接失败：" + err.Error())
@@ -400,25 +404,24 @@ func (module *httpModule) Router(name string, config Map, overrides ...bool) {
 		}
 	}
 }
-func (module *httpModule) router(name string, config Map) {
-	module.routers[name] = config
-
-	if _, ok := module.routerActions[name]; ok == false {
-		module.routerActions[name] = make([]HttpFunc, 0)
-	}
-	switch v := config["action"].(type) {
-	case func(*Http):
-		module.routerActions[name] = append(module.routerActions[name], v)
-	case []func(*Http):
-		for _, vv := range v {
-			module.routerActions[name] = append(module.routerActions[name], vv)
+func (module *httpModule) initRouterActions() {
+	for name, config := range module.routers {
+		if _, ok := module.routerActions[name]; ok == false {
+			module.routerActions[name] = make([]HttpFunc, 0)
 		}
-	case HttpFunc:
-		module.routerActions[name] = append(module.routerActions[name], v)
-	case []HttpFunc:
-		module.routerActions[name] = append(module.routerActions[name], v...)
+		switch v := config["action"].(type) {
+		case func(*Http):
+			module.routerActions[name] = append(module.routerActions[name], v)
+		case []func(*Http):
+			for _, vv := range v {
+				module.routerActions[name] = append(module.routerActions[name], vv)
+			}
+		case HttpFunc:
+			module.routerActions[name] = append(module.routerActions[name], v)
+		case []HttpFunc:
+			module.routerActions[name] = append(module.routerActions[name], v...)
+		}
 	}
-
 }
 func (module *httpModule) Filter(name string, config Map, overrides ...bool) {
 	override := true
@@ -460,71 +463,72 @@ func (module *httpModule) Filter(name string, config Map, overrides ...bool) {
 	//这里才是真的注册
 	for k, v := range filters {
 		if override {
-			module.filter(k, v)
+			module.filters[k] = v
 		} else {
 			if _, ok := module.filters[k]; ok == false {
-				module.filter(k, v)
+				module.filters[k] = v
 			}
 		}
 	}
 }
-func (module *httpModule) filter(name string, config Map) {
-	module.filters[name] = config
+func (module *httpModule) initFilterActions() {
 
-	site := ""
-	if vv, ok := config["site"].(string); ok {
-		site = vv
-	}
-
-	//请求拦截器
-	if _, ok := module.requestFilters[site]; ok == false {
-		module.requestFilters[site] = make([]HttpFunc, 0)
-	}
-	switch v := config["request"].(type) {
-	case func(*Http):
-		module.requestFilters[site] = append(module.requestFilters[site], v)
-	case []func(*Http):
-		for _, vv := range v {
-			module.requestFilters[site] = append(module.requestFilters[site], vv)
+	for _, config := range module.filters {
+		site := ""
+		if vv, ok := config["site"].(string); ok {
+			site = vv
 		}
-	case HttpFunc:
-		module.requestFilters[site] = append(module.requestFilters[site], v)
-	case []HttpFunc:
-		module.requestFilters[site] = append(module.requestFilters[site], v...)
-	}
 
-	//执行拦截器
-	if _, ok := module.executeFilters[site]; ok == false {
-		module.executeFilters[site] = make([]HttpFunc, 0)
-	}
-	switch v := config["execute"].(type) {
-	case func(*Http):
-		module.executeFilters[site] = append(module.executeFilters[site], v)
-	case []func(*Http):
-		for _, vv := range v {
-			module.executeFilters[site] = append(module.executeFilters[site], vv)
+		//请求拦截器
+		if _, ok := module.requestFilters[site]; ok == false {
+			module.requestFilters[site] = make([]HttpFunc, 0)
 		}
-	case HttpFunc:
-		module.executeFilters[site] = append(module.executeFilters[site], v)
-	case []HttpFunc:
-		module.executeFilters[site] = append(module.executeFilters[site], v...)
-	}
+		switch v := config["request"].(type) {
+		case func(*Http):
+			module.requestFilters[site] = append(module.requestFilters[site], v)
+		case []func(*Http):
+			for _, vv := range v {
+				module.requestFilters[site] = append(module.requestFilters[site], vv)
+			}
+		case HttpFunc:
+			module.requestFilters[site] = append(module.requestFilters[site], v)
+		case []HttpFunc:
+			module.requestFilters[site] = append(module.requestFilters[site], v...)
+		}
 
-	//响应拦截器
-	if _, ok := module.responseFilters[site]; ok == false {
-		module.responseFilters[site] = make([]HttpFunc, 0)
-	}
-	switch v := config["response"].(type) {
-	case func(*Http):
-		module.responseFilters[site] = append(module.responseFilters[site], v)
-	case []func(*Http):
-		for _, vv := range v {
-			module.responseFilters[site] = append(module.responseFilters[site], vv)
+		//执行拦截器
+		if _, ok := module.executeFilters[site]; ok == false {
+			module.executeFilters[site] = make([]HttpFunc, 0)
 		}
-	case HttpFunc:
-		module.responseFilters[site] = append(module.responseFilters[site], v)
-	case []HttpFunc:
-		module.responseFilters[site] = append(module.responseFilters[site], v...)
+		switch v := config["execute"].(type) {
+		case func(*Http):
+			module.executeFilters[site] = append(module.executeFilters[site], v)
+		case []func(*Http):
+			for _, vv := range v {
+				module.executeFilters[site] = append(module.executeFilters[site], vv)
+			}
+		case HttpFunc:
+			module.executeFilters[site] = append(module.executeFilters[site], v)
+		case []HttpFunc:
+			module.executeFilters[site] = append(module.executeFilters[site], v...)
+		}
+
+		//响应拦截器
+		if _, ok := module.responseFilters[site]; ok == false {
+			module.responseFilters[site] = make([]HttpFunc, 0)
+		}
+		switch v := config["response"].(type) {
+		case func(*Http):
+			module.responseFilters[site] = append(module.responseFilters[site], v)
+		case []func(*Http):
+			for _, vv := range v {
+				module.responseFilters[site] = append(module.responseFilters[site], vv)
+			}
+		case HttpFunc:
+			module.responseFilters[site] = append(module.responseFilters[site], v)
+		case []HttpFunc:
+			module.responseFilters[site] = append(module.responseFilters[site], v...)
+		}
 	}
 }
 func (module *httpModule) Handler(name string, config Map, overrides ...bool) {
@@ -567,90 +571,89 @@ func (module *httpModule) Handler(name string, config Map, overrides ...bool) {
 	//这里才是真的注册
 	for k, v := range handlers {
 		if override {
-			// module.handler[k] = v
-			module.handler(k, v)
+			module.handlers[k] = v
 		} else {
 			if _, ok := module.handlers[k]; ok == false {
-				// module.handler[k] = v
-				module.handler(k, v)
+				module.handlers[k] = v
 			}
 		}
 	}
 }
-func (module *httpModule) handler(name string, config Map) {
-	module.handlers[name] = config
+func (module *httpModule) initHandlerActions() {
 
-	site := ""
-	if vv, ok := config["site"].(string); ok {
-		site = vv
-	}
-
-	//不存在处理器
-	if _, ok := module.foundHandlers[site]; ok == false {
-		module.foundHandlers[site] = make([]HttpFunc, 0)
-	}
-	switch v := config["found"].(type) {
-	case func(*Http):
-		module.foundHandlers[site] = append(module.foundHandlers[site], v)
-	case []func(*Http):
-		for _, vv := range v {
-			module.foundHandlers[site] = append(module.foundHandlers[site], vv)
+	for _, config := range module.handlers {
+		site := ""
+		if vv, ok := config["site"].(string); ok {
+			site = vv
 		}
-	case HttpFunc:
-		module.foundHandlers[site] = append(module.foundHandlers[site], v)
-	case []HttpFunc:
-		module.foundHandlers[site] = append(module.foundHandlers[site], v...)
-	}
 
-	//错误处理器
-	if _, ok := module.errorHandlers[site]; ok == false {
-		module.errorHandlers[site] = make([]HttpFunc, 0)
-	}
-	switch v := config["error"].(type) {
-	case func(*Http):
-		module.errorHandlers[site] = append(module.errorHandlers[site], v)
-	case []func(*Http):
-		for _, vv := range v {
-			module.errorHandlers[site] = append(module.errorHandlers[site], vv)
+		//不存在处理器
+		if _, ok := module.foundHandlers[site]; ok == false {
+			module.foundHandlers[site] = make([]HttpFunc, 0)
 		}
-	case HttpFunc:
-		module.errorHandlers[site] = append(module.errorHandlers[site], v)
-	case []HttpFunc:
-		module.errorHandlers[site] = append(module.errorHandlers[site], v...)
-	}
+		switch v := config["found"].(type) {
+		case func(*Http):
+			module.foundHandlers[site] = append(module.foundHandlers[site], v)
+		case []func(*Http):
+			for _, vv := range v {
+				module.foundHandlers[site] = append(module.foundHandlers[site], vv)
+			}
+		case HttpFunc:
+			module.foundHandlers[site] = append(module.foundHandlers[site], v)
+		case []HttpFunc:
+			module.foundHandlers[site] = append(module.foundHandlers[site], v...)
+		}
 
-	//失败处理器
-	if _, ok := module.failedHandlers[site]; ok == false {
-		module.failedHandlers[site] = make([]HttpFunc, 0)
-	}
-	switch v := config["failed"].(type) {
-	case func(*Http):
-		module.failedHandlers[site] = append(module.failedHandlers[site], v)
-	case []func(*Http):
-		for _, vv := range v {
-			module.failedHandlers[site] = append(module.failedHandlers[site], vv)
+		//错误处理器
+		if _, ok := module.errorHandlers[site]; ok == false {
+			module.errorHandlers[site] = make([]HttpFunc, 0)
 		}
-	case HttpFunc:
-		module.failedHandlers[site] = append(module.failedHandlers[site], v)
-	case []HttpFunc:
-		module.failedHandlers[site] = append(module.failedHandlers[site], v...)
-	}
+		switch v := config["error"].(type) {
+		case func(*Http):
+			module.errorHandlers[site] = append(module.errorHandlers[site], v)
+		case []func(*Http):
+			for _, vv := range v {
+				module.errorHandlers[site] = append(module.errorHandlers[site], vv)
+			}
+		case HttpFunc:
+			module.errorHandlers[site] = append(module.errorHandlers[site], v)
+		case []HttpFunc:
+			module.errorHandlers[site] = append(module.errorHandlers[site], v...)
+		}
 
-	//拒绝处理器
-	if _, ok := module.deniedHandlers[site]; ok == false {
-		module.deniedHandlers[site] = make([]HttpFunc, 0)
-	}
-	switch v := config["denied"].(type) {
-	case func(*Http):
-		module.deniedHandlers[site] = append(module.deniedHandlers[site], v)
-	case []func(*Http):
-		for _, vv := range v {
-			module.deniedHandlers[site] = append(module.deniedHandlers[site], vv)
+		//失败处理器
+		if _, ok := module.failedHandlers[site]; ok == false {
+			module.failedHandlers[site] = make([]HttpFunc, 0)
 		}
-	case HttpFunc:
-		module.deniedHandlers[site] = append(module.deniedHandlers[site], v)
-	case []HttpFunc:
-		module.deniedHandlers[site] = append(module.deniedHandlers[site], v...)
+		switch v := config["failed"].(type) {
+		case func(*Http):
+			module.failedHandlers[site] = append(module.failedHandlers[site], v)
+		case []func(*Http):
+			for _, vv := range v {
+				module.failedHandlers[site] = append(module.failedHandlers[site], vv)
+			}
+		case HttpFunc:
+			module.failedHandlers[site] = append(module.failedHandlers[site], v)
+		case []HttpFunc:
+			module.failedHandlers[site] = append(module.failedHandlers[site], v...)
+		}
+
+		//拒绝处理器
+		if _, ok := module.deniedHandlers[site]; ok == false {
+			module.deniedHandlers[site] = make([]HttpFunc, 0)
+		}
+		switch v := config["denied"].(type) {
+		case func(*Http):
+			module.deniedHandlers[site] = append(module.deniedHandlers[site], v)
+		case []func(*Http):
+			for _, vv := range v {
+				module.deniedHandlers[site] = append(module.deniedHandlers[site], vv)
+			}
+		case HttpFunc:
+			module.deniedHandlers[site] = append(module.deniedHandlers[site], v)
+		case []HttpFunc:
+			module.deniedHandlers[site] = append(module.deniedHandlers[site], v...)
+		}
 	}
 
 }
@@ -788,11 +791,11 @@ func (module *httpModule) execute(ctx *Http) {
 	}
 
 	// //actions
-	// if funcs, ok := module.routerActions[ctx.Name]; ok {
-	// 	ctx.next(funcs...)
-	// }
-	funcs := ctx.funcing("action")
-	ctx.next(funcs...)
+	if funcs, ok := module.routerActions[ctx.Name]; ok {
+		ctx.next(funcs...)
+	}
+	// funcs := ctx.funcing("action")
+	// ctx.next(funcs...)
 
 	ctx.Next()
 }
@@ -1418,16 +1421,73 @@ func (module *httpModule) newSite(name string, roots ...string) *httpSite {
 	return &httpSite{module, name, root}
 }
 
-func Router(name string, config Map, overrides ...bool) {
-	ark.Http.Router(name, config, overrides...)
+func (site *httpSite) Router(name string, config Map, overrides ...bool) {
+	realName := fmt.Sprintf("%s.%s", site.name, name)
+	if site.root != "" {
+		if uri, ok := config["uri"].(string); ok {
+			config["uri"] = site.root + uri
+		} else if uris, ok := config["uris"].([]string); ok {
+			for i, uri := range uris {
+				uris[i] = site.root + uri
+			}
+			config["uris"] = uris
+		}
+	}
+	site.module.Router(realName, config, overrides...)
+}
+func (site *httpSite) Filter(name string, config Map, overrides ...bool) {
+	realName := fmt.Sprintf("%s.%s", site.name, name)
+	site.module.Filter(realName, config, overrides...)
+}
+func (site *httpSite) RequestFilter(name string, config Map) {
+	config["request"] = config["action"]
+	delete(config, "action")
+	site.Filter(name, config)
+}
+func (site *httpSite) ExecuteFilter(name string, config Map) {
+	config["execute"] = config["action"]
+	delete(config, "action")
+	site.Filter(name, config)
+}
+func (site *httpSite) ResponseFilter(name string, config Map) {
+	config["response"] = config["action"]
+	delete(config, "action")
+	site.Filter(name, config)
+}
+func (site *httpSite) Handler(name string, config Map, overrides ...bool) {
+	realName := fmt.Sprintf("%s.%s", site.name, name)
+	site.module.Handler(realName, config, overrides...)
+}
+func (site *httpSite) FoundHandler(name string, config Map) {
+	config["found"] = config["action"]
+	delete(config, "action")
+	site.Handler(name, config)
+}
+func (site *httpSite) ErrorHandler(name string, config Map) {
+	config["error"] = config["action"]
+	delete(config, "action")
+	site.Handler(name, config)
+}
+func (site *httpSite) FailedHandler(name string, config Map) {
+	config["failed"] = config["action"]
+	delete(config, "action")
+	site.Handler(name, config)
+}
+func (site *httpSite) DeniedHandler(name string, config Map) {
+	config["denied"] = config["action"]
+	delete(config, "action")
+	site.Handler(name, config)
 }
 
-func Filter(name string, config Map, overrides ...bool) {
-	ark.Http.Filter(name, config, overrides...)
-}
-func Handler(name string, config Map, overrides ...bool) {
-	ark.Http.Handler(name, config, overrides...)
-}
+// func Filter(name string, config Map, overrides ...bool) {
+// 	ark.Http.Filter(name, config, overrides...)
+// }
+// func Handler(name string, config Map, overrides ...bool) {
+// 	ark.Http.Handler(name, config, overrides...)
+// }
+// func Router(name string, config Map, overrides ...bool) {
+// 	ark.Http.Router(name, config, overrides...)
+// }
 
 func Site(name string, roots ...string) *httpSite {
 	return ark.Http.newSite(name, roots...)

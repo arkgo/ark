@@ -8,6 +8,9 @@ var (
 	ark     *arkCore
 	Mode    Env
 	Setting Map
+
+	Sites *httpSite
+	Root  *httpSite
 )
 
 func Driver(name string, driver Any) {

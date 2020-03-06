@@ -351,6 +351,9 @@ func build() {
 	ark.Http = newHttp()
 	ark.View = newView()
 
+	Sites = Site("*")
+	Root = Site("")
+
 	OK = Result(0, "ok", "成功")
 	Fail = Result(-1, "fail", "失败")
 	Found = Result(-2, "found", "不存在")

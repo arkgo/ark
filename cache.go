@@ -157,8 +157,13 @@ func (module *cacheModule) Write(key string, val Any, exp time.Duration, cons ..
 		con = module.hashring.Locate(key)
 	}
 
+	exps := make([]time.Duration, 0)
+	if exp > 0 {
+		exps = append(exps, exp)
+	}
+
 	if connect, ok := module.connects[con]; ok {
-		return connect.Write(key, val, exp)
+		return connect.Write(key, val, exps...)
 	}
 	return errors.New("写入缓存失败")
 }
