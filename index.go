@@ -26,5 +26,9 @@ func Driver(name string, driver Any) {
 		ark.Cache.Driver(name, drv)
 	case DataDriver:
 		ark.Data.Driver(name, drv)
+	case HttpDriver:
+		ark.Http.Driver(name, drv)
+	case ViewDriver:
+		ark.View.Driver(name, drv)
 	}
 }

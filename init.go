@@ -241,7 +241,7 @@ func config() *arkConfig {
 		config.Http.Static = "asset/statics"
 	}
 	if config.Http.Shared == "" {
-		config.Http.Static = "shared"
+		config.Http.Shared = "shared"
 	}
 
 	//http默认驱动
@@ -293,6 +293,7 @@ func config() *arkConfig {
 		}
 
 		//记录http的所有域名
+		config.hosts = make(map[string]string)
 		for _, host := range v.Hosts {
 			config.hosts[host] = k
 		}
@@ -301,11 +302,20 @@ func config() *arkConfig {
 	}
 
 	//隐藏的空站点，不接域名
+	if config.Site == nil {
+		config.Site = make(map[string]SiteConfig)
+	}
 	config.Site[""] = SiteConfig{Name: "空站点"}
 
 	//默认view驱动
 	if config.View.Driver == "" {
 		config.View.Driver = DEFAULT
+	}
+	if config.View.Root == "" {
+		config.View.Root = "asset/views"
+	}
+	if config.View.Shared == "" {
+		config.View.Shared = "shared"
 	}
 
 	Setting = config.Setting
@@ -339,9 +349,11 @@ func build() {
 	ark.Data = newData()
 	ark.Session = newSession()
 	ark.Http = newHttp()
+	ark.View = newView()
 
 	OK = Result(0, "ok", "成功")
 	Fail = Result(-1, "fail", "失败")
-	Retry = Result(-2, "retry", "请稍后再试")
-	Invalid = Result(-3, "invalid", "无效数据或请求")
+	Found = Result(-2, "found", "不存在")
+	Retry = Result(-3, "retry", "请稍后再试")
+	Invalid = Result(-4, "invalid", "无效数据或请求")
 }

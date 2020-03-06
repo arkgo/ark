@@ -10,11 +10,10 @@ import (
 	"net/url"
 	"os"
 	"path"
-	"regexp"
 	"strings"
+	"sync"
 	"time"
 
-	"github.com/arkgo/asset/hashring"
 	"github.com/arkgo/asset/util"
 	. "github.com/arkgo/base"
 )
@@ -129,26 +128,34 @@ type (
 
 	RawBody string
 
-	httpRegisters = map[string]Map
+	httpSite struct {
+		module *httpModule
+		name   string
+		root   string
+	}
+
 	httpSiteFuncs = map[string][]HttpFunc
 	httpModule    struct {
+		mutex   sync.Mutex
 		drivers map[string]HttpDriver
 
-		routers       httpRegisters
+		routers       map[string]Map
 		routerActions httpSiteFuncs
 
 		//为了提高效率，这里直接保存
-		filters         httpRegisters
+		filters         map[string]Map
 		requestFilters  httpSiteFuncs
 		executeFilters  httpSiteFuncs
 		responseFilters httpSiteFuncs
 
-		handlers      httpRegisters
-		errorFilters  httpSiteFuncs
-		failedFilters httpSiteFuncs
-		deniedFilters httpSiteFuncs
+		handlers       map[string]Map
+		foundHandlers  httpSiteFuncs
+		errorHandlers  httpSiteFuncs
+		failedHandlers httpSiteFuncs
+		deniedHandlers httpSiteFuncs
 
 		connect HttpConnect
+		url     *httpUrl
 	}
 )
 
@@ -156,28 +163,31 @@ func newHttp() *httpModule {
 	return &httpModule{
 		drivers: make(map[string]HttpDriver),
 
-		routers:       make(httpRegisters),
+		routers:       make(map[string]Map),
 		routerActions: make(httpSiteFuncs),
 
-		filters:         make(httpRegisters),
+		filters:         make(map[string]Map),
 		requestFilters:  make(httpSiteFuncs),
 		executeFilters:  make(httpSiteFuncs),
 		responseFilters: make(httpSiteFuncs),
 
-		handlers:      make(httpRegisters),
-		errorFilters:  make(httpSiteFuncs),
-		failedFilters: make(httpSiteFuncs),
-		deniedFilters: make(httpSiteFuncs),
+		handlers:       make(map[string]Map),
+		foundHandlers:  make(httpSiteFuncs),
+		errorHandlers:  make(httpSiteFuncs),
+		failedHandlers: make(httpSiteFuncs),
+		deniedHandlers: make(httpSiteFuncs),
+
+		url: &httpUrl{},
 	}
 }
 
-//注册缓存驱动
-func (module *httpModule) Driver(name string, driver CacheDriver, overrides ...bool) {
+//注册HTTP驱动
+func (module *httpModule) Driver(name string, driver HttpDriver, overrides ...bool) {
 	module.mutex.Lock()
 	defer module.mutex.Unlock()
 
 	if driver == nil {
-		panic("[缓存]驱动不可为空")
+		panic("[HTTP]驱动不可为空")
 	}
 
 	override := true
@@ -194,47 +204,36 @@ func (module *httpModule) Driver(name string, driver CacheDriver, overrides ...b
 	}
 }
 
-func (module *httpModule) connecting(name string, config CacheConfig) (CacheConnect, error) {
+func (module *httpModule) connecting(config HttpConfig) (HttpConnect, error) {
 	if driver, ok := module.drivers[config.Driver]; ok {
-		return driver.Connect(name, config)
+		return driver.Connect(config)
 	}
-	panic("[缓存]不支持的驱动" + config.Driver)
+	panic("[HTTP]不支持的驱动" + config.Driver)
 }
 func (module *httpModule) initing() {
-	weights := make(map[string]int)
-	for name, config := range ark.Config.Cache {
-		if config.Weight > 0 {
-			//只有设置了权重的缓存才参与分布
-			weights[name] = config.Weight
-		}
 
-		connect, err := module.connecting(name, config)
-		if err != nil {
-			panic("[缓存]连接失败：" + err.Error())
-		}
-		err = connect.Open()
-		if err != nil {
-			panic("[缓存]打开失败：" + err.Error())
-		}
-
-		//绑定回调
-		connect.Accept(module.serve)
-
-		//注册路由
-		for k, v := range module.routers {
-			regis := module.registering(vv)
-			err := connect.Register(k, regis)
-			if err != nil {
-				panic("[HTTP]注册失败：" + err.Error())
-			}
-		}
-
-		module.connects[name] = connect
+	connect, err := module.connecting(ark.Config.Http)
+	if err != nil {
+		panic("[HTTP]连接失败：" + err.Error())
+	}
+	err = connect.Open()
+	if err != nil {
+		panic("[HTTP]打开失败：" + err.Error())
 	}
 
-	//hashring分片
-	module.weights = weights
-	module.hashring = hashring.New(weights)
+	//绑定回调
+	connect.Accept(module.serve)
+
+	//注册路由
+	for k, v := range module.routers {
+		regis := module.registering(v)
+		err := connect.Register(k, regis)
+		if err != nil {
+			panic("[HTTP]注册失败：" + err.Error())
+		}
+	}
+
+	module.connect = connect
 }
 
 func (module *httpModule) registering(config Map) HttpRegister {
@@ -270,9 +269,17 @@ func (module *httpModule) registering(config Map) HttpRegister {
 	return regis
 }
 
+func (module *httpModule) Start() {
+	if ark.Config.Http.CertFile != "" && ark.Config.Http.KeyFile != "" {
+		module.connect.StartTLS(ark.Config.Http.CertFile, ark.Config.Http.KeyFile)
+	} else {
+		module.connect.Start()
+	}
+}
+
 func (module *httpModule) exiting() {
-	for _, connect := range module.connects {
-		connect.Close()
+	if module.connect != nil {
+		module.connect.Close()
 	}
 }
 
@@ -280,6 +287,11 @@ func (module *httpModule) Router(name string, config Map, overrides ...bool) {
 	override := true
 	if len(overrides) > 0 {
 		override = overrides[0]
+	}
+
+	names := strings.Split(name, ".")
+	if len(names) <= 1 {
+		name = "*." + name
 	}
 
 	//直接的时候直接拆分成目标格式
@@ -301,6 +313,9 @@ func (module *httpModule) Router(name string, config Map, overrides ...bool) {
 			objects[siteName] = siteConfig
 		}
 	} else {
+		if len(names) >= 2 {
+			config["site"] = names[0]
+		}
 		//单站点
 		objects[name] = config
 	}
@@ -393,15 +408,15 @@ func (module *httpModule) router(name string, config Map) {
 	}
 	switch v := config["action"].(type) {
 	case func(*Http):
-		module.routerActions = append(module.routerActions, v)
+		module.routerActions[name] = append(module.routerActions[name], v)
 	case []func(*Http):
 		for _, vv := range v {
-			module.routerActions = append(module.routerActions, vv)
+			module.routerActions[name] = append(module.routerActions[name], vv)
 		}
 	case HttpFunc:
-		module.routerActions = append(module.routerActions, v)
+		module.routerActions[name] = append(module.routerActions[name], v)
 	case []HttpFunc:
-		module.routerActions = append(module.routerActions, v...)
+		module.routerActions[name] = append(module.routerActions[name], v...)
 	}
 
 }
@@ -409,6 +424,11 @@ func (module *httpModule) Filter(name string, config Map, overrides ...bool) {
 	override := true
 	if len(overrides) > 0 {
 		override = overrides[0]
+	}
+
+	names := strings.Split(name, ".")
+	if len(names) <= 1 {
+		name = "*." + name
 	}
 
 	//直接的时候直接拆分成目标格式
@@ -430,6 +450,9 @@ func (module *httpModule) Filter(name string, config Map, overrides ...bool) {
 			filters[siteName] = siteConfig
 		}
 	} else {
+		if len(names) >= 2 {
+			config["site"] = names[0]
+		}
 		//单站点
 		filters[name] = config
 	}
@@ -459,15 +482,15 @@ func (module *httpModule) filter(name string, config Map) {
 	}
 	switch v := config["request"].(type) {
 	case func(*Http):
-		module.requestFilters = append(module.requestFilters, v)
+		module.requestFilters[site] = append(module.requestFilters[site], v)
 	case []func(*Http):
 		for _, vv := range v {
-			module.requestFilters = append(module.requestFilters, vv)
+			module.requestFilters[site] = append(module.requestFilters[site], vv)
 		}
 	case HttpFunc:
-		module.requestFilters = append(module.requestFilters, v)
+		module.requestFilters[site] = append(module.requestFilters[site], v)
 	case []HttpFunc:
-		module.requestFilters = append(module.requestFilters, v...)
+		module.requestFilters[site] = append(module.requestFilters[site], v...)
 	}
 
 	//执行拦截器
@@ -476,15 +499,15 @@ func (module *httpModule) filter(name string, config Map) {
 	}
 	switch v := config["execute"].(type) {
 	case func(*Http):
-		module.executeFilters = append(module.executeFilters, v)
+		module.executeFilters[site] = append(module.executeFilters[site], v)
 	case []func(*Http):
 		for _, vv := range v {
-			module.executeFilters = append(module.executeFilters, vv)
+			module.executeFilters[site] = append(module.executeFilters[site], vv)
 		}
 	case HttpFunc:
-		module.executeFilters = append(module.executeFilters, v)
+		module.executeFilters[site] = append(module.executeFilters[site], v)
 	case []HttpFunc:
-		module.executeFilters = append(module.executeFilters, v...)
+		module.executeFilters[site] = append(module.executeFilters[site], v...)
 	}
 
 	//响应拦截器
@@ -493,21 +516,26 @@ func (module *httpModule) filter(name string, config Map) {
 	}
 	switch v := config["response"].(type) {
 	case func(*Http):
-		module.responseFilters = append(module.responseFilters, v)
+		module.responseFilters[site] = append(module.responseFilters[site], v)
 	case []func(*Http):
 		for _, vv := range v {
-			module.responseFilters = append(module.responseFilters, vv)
+			module.responseFilters[site] = append(module.responseFilters[site], vv)
 		}
 	case HttpFunc:
-		module.responseFilters = append(module.responseFilters, v)
+		module.responseFilters[site] = append(module.responseFilters[site], v)
 	case []HttpFunc:
-		module.responseFilters = append(module.responseFilters, v...)
+		module.responseFilters[site] = append(module.responseFilters[site], v...)
 	}
 }
 func (module *httpModule) Handler(name string, config Map, overrides ...bool) {
 	override := true
 	if len(overrides) > 0 {
 		override = overrides[0]
+	}
+
+	names := strings.Split(name, ".")
+	if len(names) <= 1 {
+		name = "*." + name
 	}
 
 	//直接的时候直接拆分成目标格式
@@ -529,6 +557,9 @@ func (module *httpModule) Handler(name string, config Map, overrides ...bool) {
 			handlers[siteName] = siteConfig
 		}
 	} else {
+		if len(names) >= 2 {
+			config["site"] = names[0]
+		}
 		//单站点
 		handlers[name] = config
 	}
@@ -539,7 +570,7 @@ func (module *httpModule) Handler(name string, config Map, overrides ...bool) {
 			// module.handler[k] = v
 			module.handler(k, v)
 		} else {
-			if _, ok := module.handler[k]; ok == false {
+			if _, ok := module.handlers[k]; ok == false {
 				// module.handler[k] = v
 				module.handler(k, v)
 			}
@@ -554,21 +585,38 @@ func (module *httpModule) handler(name string, config Map) {
 		site = vv
 	}
 
+	//不存在处理器
+	if _, ok := module.foundHandlers[site]; ok == false {
+		module.foundHandlers[site] = make([]HttpFunc, 0)
+	}
+	switch v := config["found"].(type) {
+	case func(*Http):
+		module.foundHandlers[site] = append(module.foundHandlers[site], v)
+	case []func(*Http):
+		for _, vv := range v {
+			module.foundHandlers[site] = append(module.foundHandlers[site], vv)
+		}
+	case HttpFunc:
+		module.foundHandlers[site] = append(module.foundHandlers[site], v)
+	case []HttpFunc:
+		module.foundHandlers[site] = append(module.foundHandlers[site], v...)
+	}
+
 	//错误处理器
 	if _, ok := module.errorHandlers[site]; ok == false {
 		module.errorHandlers[site] = make([]HttpFunc, 0)
 	}
 	switch v := config["error"].(type) {
 	case func(*Http):
-		module.errorHandlers = append(module.errorHandlers, v)
+		module.errorHandlers[site] = append(module.errorHandlers[site], v)
 	case []func(*Http):
 		for _, vv := range v {
-			module.errorHandlers = append(module.errorHandlers, vv)
+			module.errorHandlers[site] = append(module.errorHandlers[site], vv)
 		}
 	case HttpFunc:
-		module.errorHandlers = append(module.errorHandlers, v)
+		module.errorHandlers[site] = append(module.errorHandlers[site], v)
 	case []HttpFunc:
-		module.errorHandlers = append(module.errorHandlers, v...)
+		module.errorHandlers[site] = append(module.errorHandlers[site], v...)
 	}
 
 	//失败处理器
@@ -577,15 +625,15 @@ func (module *httpModule) handler(name string, config Map) {
 	}
 	switch v := config["failed"].(type) {
 	case func(*Http):
-		module.failedHandlers = append(module.failedHandlers, v)
+		module.failedHandlers[site] = append(module.failedHandlers[site], v)
 	case []func(*Http):
 		for _, vv := range v {
-			module.failedHandlers = append(module.failedHandlers, vv)
+			module.failedHandlers[site] = append(module.failedHandlers[site], vv)
 		}
 	case HttpFunc:
-		module.failedHandlers = append(module.failedHandlers, v)
+		module.failedHandlers[site] = append(module.failedHandlers[site], v)
 	case []HttpFunc:
-		module.failedHandlers = append(module.failedHandlers, v...)
+		module.failedHandlers[site] = append(module.failedHandlers[site], v...)
 	}
 
 	//拒绝处理器
@@ -594,23 +642,24 @@ func (module *httpModule) handler(name string, config Map) {
 	}
 	switch v := config["denied"].(type) {
 	case func(*Http):
-		module.deniedHandlers = append(module.deniedHandlers, v)
+		module.deniedHandlers[site] = append(module.deniedHandlers[site], v)
 	case []func(*Http):
 		for _, vv := range v {
-			module.deniedHandlers = append(module.deniedHandlers, vv)
+			module.deniedHandlers[site] = append(module.deniedHandlers[site], vv)
 		}
 	case HttpFunc:
-		module.deniedHandlers = append(module.deniedHandlers, v)
+		module.deniedHandlers[site] = append(module.deniedHandlers[site], v)
 	case []HttpFunc:
-		module.deniedHandlers = append(module.deniedHandlers, v...)
+		module.deniedHandlers[site] = append(module.deniedHandlers[site], v...)
 	}
 
 }
 
 //事件Http  请求开始
 func (module *httpModule) serve(thread HttpThread) {
+
 	ctx := httpContext(thread)
-	if config, ok := module.routers[ctx.Name].(Map); ok {
+	if config, ok := module.routers[ctx.Name]; ok {
 		ctx.Config = config
 	}
 
@@ -621,27 +670,38 @@ func (module *httpModule) serve(thread HttpThread) {
 		ctx.next(funcs...)
 	}
 	ctx.next(module.request)
+	ctx.next(module.execute)
 
 	//开始执行
 	ctx.Next()
 }
 
 func (module *httpModule) request(ctx *Http) {
+	now := time.Now()
 
 	//请求id
 	ctx.Id = ctx.Cookie(ctx.siteConfig.Cookie)
 	if ctx.Id == "" {
 		ctx.Id = Unique()
 		ctx.Cookie(ctx.siteConfig.Cookie, ctx.Id)
-	}
-
-	//请求的一开始，主要是SESSION处理
-	if ctx.sessional(true) {
-		mmm, eee := ark.Session.Read(ctx.Id)
-		if eee == nil {
-			for k, v := range mmm {
-				//待处理，session要不要写入value，好让args可以处理
-				ctx.Session[k] = v
+		ctx.Session("$last", now.Unix())
+	} else {
+		//请求的一开始，主要是SESSION处理
+		if ctx.sessional(true) {
+			mmm, eee := ark.Session.Read(ctx.Id)
+			if eee == nil && mmm != nil {
+				for k, v := range mmm {
+					ctx.sessions[k] = v
+				}
+			} else {
+				//活跃超过1天，就更新一下session
+				if vv, ok := ctx.sessions["$last"].(float64); ok {
+					if (now.Unix() - int64(vv)) > 60*60*24 {
+						ctx.Session("$last", now.Unix())
+					}
+				} else {
+					ctx.Session("$last", now.Unix())
+				}
 			}
 		}
 	}
@@ -675,7 +735,7 @@ func (module *httpModule) request(ctx *Http) {
 			ctx.lastError = res
 			module.failed(ctx)
 		} else {
-			if res := module.clientHandler(ctx); res.Fail() {
+			if res := ctx.clientHandler(); res.Fail() {
 				ctx.lastError = res
 				module.failed(ctx)
 			} else {
@@ -692,7 +752,7 @@ func (module *httpModule) request(ctx *Http) {
 							module.failed(ctx)
 						} else {
 							//往下走，到execute
-							ctx.execute()
+							ctx.Next()
 						}
 					}
 				}
@@ -701,22 +761,21 @@ func (module *httpModule) request(ctx *Http) {
 	}
 
 	//session写回去
-	if ctx.sessional(true) {
-		//待处理，SESSION如果没有任何变化， 就不写session
+	if ctx.sessional(false) {
 		//这样节省SESSION的资源
 		if ctx.siteConfig.Expiry != "" {
 			td, err := util.ParseDuration(ctx.siteConfig.Expiry)
 			if err == nil {
-				ark.Session.Write(ctx.Id, ctx.Session, td)
+				ark.Session.Write(ctx.Id, ctx.sessions, td)
 			} else {
-				ark.Session.Write(ctx.Id, ctx.Session)
+				ark.Session.Write(ctx.Id, ctx.sessions)
 			}
 		} else {
-			ark.Session.Write(ctx.Id, ctx.Session)
+			ark.Session.Write(ctx.Id, ctx.sessions)
 		}
 	}
 
-	ctx.response()
+	module.response(ctx)
 }
 
 //事件执行，调用action的地方
@@ -728,10 +787,12 @@ func (module *httpModule) execute(ctx *Http) {
 		ctx.next(funcs...)
 	}
 
-	//actions
-	if funcs, ok := module.routerActions[ctx.Name]; ok {
-		ctx.next(funcs...)
-	}
+	// //actions
+	// if funcs, ok := module.routerActions[ctx.Name]; ok {
+	// 	ctx.next(funcs...)
+	// }
+	funcs := ctx.funcing("action")
+	ctx.next(funcs...)
 
 	ctx.Next()
 }
@@ -782,7 +843,7 @@ func (module *httpModule) body(ctx *Http) {
 		http.SetCookie(ctx.response, &v)
 	}
 	for k, v := range ctx.headers {
-		res.Header().Set(k, v)
+		ctx.response.Header().Set(k, v)
 	}
 
 	switch body := ctx.Body.(type) {
@@ -821,21 +882,21 @@ func (module *httpModule) body(ctx *Http) {
 }
 func (module *httpModule) bodyDefault(ctx *Http) {
 	ctx.Code = http.StatusNotFound
-	http.NotFound(ctx.req.Writer, ctx.req.Reader)
+	http.NotFound(ctx.response, ctx.request)
 	ctx.thread.Finish()
 }
 func (module *httpModule) bodyGoto(ctx *Http, body httpGotoBody) {
-	http.Redirect(ctx.req.Writer, ctx.req.Reader, body.url, http.StatusFound)
+	http.Redirect(ctx.response, ctx.request, body.url, http.StatusFound)
 	ctx.thread.Finish()
 }
 func (module *httpModule) bodyText(ctx *Http, body httpTextBody) {
-	res := ctx.req.Writer
+	res := ctx.response
 
 	if ctx.Type == "" {
 		ctx.Type = "text"
 	}
 
-	ctx.Type = mBase.Mimetype(ctx.Type, "text/explain")
+	ctx.Type = ark.Basic.Mimetype(ctx.Type, "text/explain")
 	res.Header().Set("Content-Type", fmt.Sprintf("%v; charset=%v", ctx.Type, ctx.Charset))
 
 	res.WriteHeader(ctx.Code)
@@ -844,13 +905,13 @@ func (module *httpModule) bodyText(ctx *Http, body httpTextBody) {
 	ctx.thread.Finish()
 }
 func (module *httpModule) bodyHtml(ctx *Http, body httpHtmlBody) {
-	res := ctx.req.Writer
+	res := ctx.response
 
 	if ctx.Type == "" {
 		ctx.Type = "html"
 	}
 
-	ctx.Type = mBase.Mimetype(ctx.Type, "text/html")
+	ctx.Type = ark.Basic.Mimetype(ctx.Type, "text/html")
 	res.Header().Set("Content-Type", fmt.Sprintf("%v; charset=%v", ctx.Type, ctx.Charset))
 
 	res.WriteHeader(ctx.Code)
@@ -859,9 +920,9 @@ func (module *httpModule) bodyHtml(ctx *Http, body httpHtmlBody) {
 	ctx.thread.Finish()
 }
 func (module *httpModule) bodyScript(ctx *Http, body httpScriptBody) {
-	res := ctx.req.Writer
+	res := ctx.response
 
-	ctx.Type = mBase.Mimetype(ctx.Type, "application/script")
+	ctx.Type = ark.Basic.Mimetype(ctx.Type, "application/script")
 	res.Header().Set("Content-Type", fmt.Sprintf("%v; charset=%v", ctx.Type, ctx.Charset))
 
 	res.WriteHeader(ctx.Code)
@@ -869,7 +930,7 @@ func (module *httpModule) bodyScript(ctx *Http, body httpScriptBody) {
 	ctx.thread.Finish()
 }
 func (module *httpModule) bodyJson(ctx *Http, body httpJsonBody) {
-	res := ctx.req.Writer
+	res := ctx.response
 
 	bytes, err := json.Marshal(body.json)
 	if err != nil {
@@ -877,7 +938,7 @@ func (module *httpModule) bodyJson(ctx *Http, body httpJsonBody) {
 		http.Error(res, err.Error(), http.StatusInternalServerError)
 	} else {
 
-		ctx.Type = mBase.Mimetype(ctx.Type, "text/json")
+		ctx.Type = ark.Basic.Mimetype(ctx.Type, "text/json")
 		res.Header().Set("Content-Type", fmt.Sprintf("%v; charset=%v", ctx.Type, ctx.Charset))
 
 		res.WriteHeader(ctx.Code)
@@ -886,7 +947,7 @@ func (module *httpModule) bodyJson(ctx *Http, body httpJsonBody) {
 	ctx.thread.Finish()
 }
 func (module *httpModule) bodyJsonp(ctx *Http, body httpJsonpBody) {
-	res := ctx.req.Writer
+	res := ctx.response
 
 	bytes, err := json.Marshal(body.json)
 	if err != nil {
@@ -894,7 +955,7 @@ func (module *httpModule) bodyJsonp(ctx *Http, body httpJsonpBody) {
 		http.Error(res, err.Error(), http.StatusInternalServerError)
 	} else {
 
-		ctx.Type = mBase.Mimetype(ctx.Type, "application/script")
+		ctx.Type = ark.Basic.Mimetype(ctx.Type, "application/script")
 		res.Header().Set("Content-Type", fmt.Sprintf("%v; charset=%v", ctx.Type, ctx.Charset))
 
 		res.WriteHeader(ctx.Code)
@@ -903,7 +964,7 @@ func (module *httpModule) bodyJsonp(ctx *Http, body httpJsonpBody) {
 	ctx.thread.Finish()
 }
 func (module *httpModule) bodyXml(ctx *Http, body httpXmlBody) {
-	res := ctx.req.Writer
+	res := ctx.response
 
 	if ctx.Type == "" {
 		ctx.Type = "xml"
@@ -922,7 +983,7 @@ func (module *httpModule) bodyXml(ctx *Http, body httpXmlBody) {
 	if content == "" {
 		http.Error(res, "解析xml失败", http.StatusInternalServerError)
 	} else {
-		ctx.Type = mBase.Mimetype(ctx.Type, "text/xml")
+		ctx.Type = ark.Basic.Mimetype(ctx.Type, "text/xml")
 		res.Header().Set("Content-Type", fmt.Sprintf("%v; charset=%v", ctx.Type, ctx.Charset))
 
 		res.WriteHeader(ctx.Code)
@@ -971,7 +1032,7 @@ func (module *httpModule) bodyApi(ctx *Http, body httpApiBody) {
 		}
 
 		val := Map{}
-		res := mBase.Mapping(tempConfig, tempData, val, false, false, &ctx.Context)
+		res := ark.Basic.Mapping(tempConfig, tempData, val, false, false, ctx)
 
 		//Debug("json", tempConfig, tempData)
 
@@ -979,7 +1040,7 @@ func (module *httpModule) bodyApi(ctx *Http, body httpApiBody) {
 			//处理后的data
 			json["data"] = val["data"]
 		} else {
-			json["code"] = mBase.Code(res.Text)
+			json["code"] = ark.Basic.Code(res.Text)
 			json["text"] = ctx.String(res.Text, res.Args...)
 		}
 
@@ -990,11 +1051,11 @@ func (module *httpModule) bodyApi(ctx *Http, body httpApiBody) {
 }
 
 func (module *httpModule) bodyFile(ctx *Http, body httpFileBody) {
-	req, res := ctx.req.Reader, ctx.req.Writer
+	req, res := ctx.request, ctx.response
 
 	//文件类型
 	if ctx.Type != "file" {
-		ctx.Type = mBase.Mimetype(ctx.Type, "application/octet-stream")
+		ctx.Type = ark.Basic.Mimetype(ctx.Type, "application/octet-stream")
 		res.Header().Set("Content-Type", fmt.Sprintf("%v; charset=%v", ctx.Type, ctx.Charset))
 	}
 	//加入自定义文件名
@@ -1006,13 +1067,13 @@ func (module *httpModule) bodyFile(ctx *Http, body httpFileBody) {
 	ctx.thread.Finish()
 }
 func (module *httpModule) bodyDown(ctx *Http, body httpDownBody) {
-	res := ctx.req.Writer
+	res := ctx.response
 
 	if ctx.Type == "" {
 		ctx.Type = "file"
 	}
 
-	ctx.Type = mBase.Mimetype(ctx.Type, "application/octet-stream")
+	ctx.Type = ark.Basic.Mimetype(ctx.Type, "application/octet-stream")
 	res.Header().Set("Content-Type", fmt.Sprintf("%v; charset=%v", ctx.Type, ctx.Charset))
 	//加入自定义文件名
 	if body.name != "" {
@@ -1025,13 +1086,13 @@ func (module *httpModule) bodyDown(ctx *Http, body httpDownBody) {
 	ctx.thread.Finish()
 }
 func (module *httpModule) bodyBuffer(ctx *Http, body httpBufferBody) {
-	res := ctx.req.Writer
+	res := ctx.response
 
 	if ctx.Type == "" {
 		ctx.Type = "file"
 	}
 
-	ctx.Type = mBase.Mimetype(ctx.Type, "application/octet-stream")
+	ctx.Type = ark.Basic.Mimetype(ctx.Type, "application/octet-stream")
 	res.Header().Set("Content-Type", fmt.Sprintf("%v; charset=%v", ctx.Type, ctx.Charset))
 	//加入自定义文件名
 	if body.name != "" {
@@ -1048,14 +1109,36 @@ func (module *httpModule) bodyBuffer(ctx *Http, body httpBufferBody) {
 	ctx.thread.Finish()
 }
 func (module *httpModule) bodyView(ctx *Http, body httpViewBody) {
-	res := ctx.req.Writer
+	res := ctx.response
 
 	viewdata := Map{
-		kARGS: ctx.Args, kAUTH: ctx.Auth,
-		kSETTING: Setting, kLOCAL: ctx.Local,
-		kDATA: ctx.Data, kMODEL: body.model,
+		"args": ctx.Args, "auth": ctx.Auth,
+		"stting": Setting, "local": ctx.Local,
+		"data": ctx.Data, "model": body.model,
 	}
 
+	helpers := module.viewHelpers(ctx)
+
+	html, err := ark.View.Parse(ViewBody{
+		Helpers: helpers,
+		Root:    ark.Config.View.Root,
+		Shared:  ark.Config.Http.Shared,
+		View:    body.view, Data: viewdata,
+		Site: ctx.Site, Lang: ctx.Lang, Zone: ctx.Zone,
+	})
+
+	if err != nil {
+		http.Error(res, ctx.String(err.Error()), 500)
+	} else {
+		mime := ark.Basic.Mimetype(ctx.Type, "text/html")
+		res.Header().Set("Content-Type", fmt.Sprintf("%v; charset=%v", mime, ctx.Charset))
+		res.WriteHeader(ctx.Code)
+		fmt.Fprint(res, html)
+	}
+
+	ctx.thread.Finish()
+}
+func (module *httpModule) viewHelpers(ctx *Http) Map {
 	//系统内置的helper
 	helpers := Map{
 		"route":    ctx.Url.Route,
@@ -1134,34 +1217,22 @@ func (module *httpModule) bodyView(ctx *Http, body httpViewBody) {
 		},
 	}
 
-	vhelpers := mView.helperActions()
-	for k, v := range vhelpers {
-		helpers[k] = v
+	for k, v := range ark.View.actions {
+		if f, ok := v.(func(*Http, ...Any) Any); ok {
+			helpers[k] = func(args ...Any) Any {
+				return f(ctx, args...)
+			}
+		} else {
+			helpers[k] = v
+		}
 	}
 
-	html, err := mView.parse(ctx, ViewBody{
-		Root:    Config.Path.View,
-		Shared:  Config.Path.Shared,
-		View:    body.view,
-		Data:    viewdata,
-		Helpers: helpers,
-	})
-
-	if err != nil {
-		http.Error(res, ctx.String(err.Error()), 500)
-	} else {
-		mime := mBase.Mimetype(ctx.Type, "text/html")
-		res.Header().Set("Content-Type", fmt.Sprintf("%v; charset=%v", mime, ctx.Charset))
-		res.WriteHeader(ctx.Code)
-		fmt.Fprint(res, html)
-	}
-
-	ctx.thread.Finish()
+	return helpers
 }
 
 func (module *httpModule) bodyProxy(ctx *Http, body httpProxyBody) {
-	req := ctx.req.Reader
-	res := ctx.req.Writer
+	req := ctx.request
+	res := ctx.response
 
 	target := body.url
 	targetQuery := body.url.RawQuery
@@ -1201,12 +1272,13 @@ func (module *httpModule) found(ctx *Http) {
 	ctx.Code = http.StatusNotFound
 
 	//如果有自定义的错误处理，加入调用列表
-	funcs := ctx.funcing(kFOUND)
+	funcs := ctx.funcing("found")
 	ctx.next(funcs...)
 
 	//把处理器加入调用列表
-	handlers := module.foundHandlerActions(ctx.Site)
-	ctx.next(handlers...)
+	if funcs, ok := module.foundHandlers[ctx.Site]; ok {
+		ctx.next(funcs...)
+	}
 
 	//加入默认的错误处理
 	ctx.next(module.foundDefaultHandler)
@@ -1215,7 +1287,7 @@ func (module *httpModule) found(ctx *Http) {
 
 //最终还是由response处理
 func (module *httpModule) foundDefaultHandler(ctx *Http) {
-	found := newResult(_kFOUND)
+	found := newResult("found")
 	if res := ctx.Result(); res != nil {
 		found = res
 	}
@@ -1224,7 +1296,7 @@ func (module *httpModule) foundDefaultHandler(ctx *Http) {
 	if ctx.Ajax {
 		ctx.Answer(found)
 	} else {
-		ctx.View(kFOUND)
+		ctx.View("found")
 	}
 }
 
@@ -1233,12 +1305,13 @@ func (module *httpModule) error(ctx *Http) {
 	ctx.clear()
 
 	//如果有自定义的错误处理，加入调用列表
-	funcs := ctx.funcing(kERROR)
+	funcs := ctx.funcing("error")
 	ctx.next(funcs...)
 
 	//把错误处理器加入调用列表
-	handlers := module.errorHandlerActions(ctx.Site)
-	ctx.next(handlers...)
+	if funcs, ok := module.errorHandlers[ctx.Site]; ok {
+		ctx.next(funcs...)
+	}
 
 	//加入默认的错误处理
 	ctx.next(module.errorDefaultHandler)
@@ -1247,18 +1320,27 @@ func (module *httpModule) error(ctx *Http) {
 
 //最终还是由response处理
 func (module *httpModule) errorDefaultHandler(ctx *Http) {
-	error := newResult(_kERROR)
+	error := newResult("error")
 	if res := ctx.Result(); res != nil {
 		error = res
 	}
+
+	ctx.Code = http.StatusInternalServerError
+	if error == Found {
+		ctx.Code = 404
+	}
+
 	if ctx.Ajax {
 		ctx.Answer(error)
 	} else {
-		ctx.Data[kERROR] = Map{
-			"code": mBase.Code(error.Text),
+
+		ctx.Data["status"] = ctx.Code
+		ctx.Data["error"] = Map{
+			"code": ark.Basic.Code(error.Text),
 			"text": ctx.String(error.Text, error.Args...),
 		}
-		ctx.View(kERROR)
+
+		ctx.View("error")
 	}
 }
 
@@ -1267,12 +1349,13 @@ func (module *httpModule) failed(ctx *Http) {
 	ctx.clear()
 
 	//如果有自定义的失败处理，加入调用列表
-	funcs := ctx.funcing(kFAILED)
+	funcs := ctx.funcing("failed")
 	ctx.next(funcs...)
 
 	//把失败处理器加入调用列表
-	handlers := module.failedHandlerActions(ctx.Site)
-	ctx.next(handlers...)
+	if funcs, ok := module.failedHandlers[ctx.Site]; ok {
+		ctx.next(funcs...)
+	}
 
 	//加入默认的错误处理
 	ctx.next(module.failedDefaultHandler)
@@ -1281,7 +1364,7 @@ func (module *httpModule) failed(ctx *Http) {
 
 //最终还是由response处理
 func (module *httpModule) failedDefaultHandler(ctx *Http) {
-	failed := newResult(_kFAILED)
+	failed := newResult("failed")
 	if res := ctx.Result(); res != nil {
 		failed = res
 	}
@@ -1298,12 +1381,13 @@ func (module *httpModule) denied(ctx *Http) {
 	ctx.clear()
 
 	//如果有自定义的失败处理，加入调用列表
-	funcs := ctx.funcing(kDENIED)
+	funcs := ctx.funcing("denied")
 	ctx.next(funcs...)
 
 	//把失败处理器加入调用列表
-	handlers := module.deniedHandlerActions(ctx.Site)
-	ctx.next(handlers...)
+	if funcs, ok := module.deniedHandlers[ctx.Site]; ok {
+		ctx.next(funcs...)
+	}
 
 	//加入默认的错误处理
 	ctx.next(module.deniedDefaultHandler)
@@ -1314,7 +1398,7 @@ func (module *httpModule) denied(ctx *Http) {
 //如果是ajax。返回拒绝
 //如果不是， 返回一个脚本提示
 func (module *httpModule) deniedDefaultHandler(ctx *Http) {
-	denied := newResult(_kDENIED)
+	denied := newResult("denied")
 	if res := ctx.Result(); res != nil {
 		denied = res
 	}
@@ -1326,445 +1410,28 @@ func (module *httpModule) deniedDefaultHandler(ctx *Http) {
 	}
 }
 
-//可否智能判断是否跨站返回URL
-func (url *httpUrl) Route(name string, values ...Map) string {
-
-	if strings.HasPrefix(name, "http://") || strings.HasPrefix(name, "https://") ||
-		strings.HasPrefix(name, "ws://") || strings.HasPrefix(name, "wss://") {
-		return name
+func (module *httpModule) newSite(name string, roots ...string) *httpSite {
+	root := ""
+	if len(roots) > 0 {
+		root = strings.TrimRight(roots[0], "/")
 	}
-
-	//当前站点
-	currSite := ""
-	if url.ctx != nil {
-		currSite = url.ctx.Site
-		if name == "" {
-			name = url.ctx.Name
-		}
-	}
-
-	params, querys, options := Map{}, Map{}, Map{}
-	if len(values) > 0 {
-		for k, v := range values[0] {
-			if strings.HasPrefix(k, "{") && strings.HasSuffix(k, "}") {
-				params[k] = v
-			} else if strings.HasPrefix(k, "[") && strings.HasSuffix(k, "]") {
-				options[k] = v
-			} else {
-				querys[k] = v
-			}
-		}
-	}
-
-	// justSite, justName := "", ""
-	justSite := ""
-	if strings.Contains(name, ".") {
-		i := strings.Index(name, ".")
-		justSite = name[:i]
-		// justName = name[i+1:]
-	}
-
-	//如果是*.开头，因为在file.driver里可能定义*.xx.xxx.xx做为路由访问文件
-	if justSite == "*" {
-		if currSite != "" {
-			justSite = currSite
-		} else {
-			//只能随机选一个站点了
-			for site, _ := range Config.Site {
-				justSite = site
-				break
-			}
-		}
-		name = strings.Replace(name, "*", justSite, 1)
-	}
-
-	//如果是不同站点，强制带域名
-	if justSite != currSite {
-		options["[site]"] = justSite
-	} else if options["[site]"] != nil {
-		options["[site]"] = currSite
-	}
-
-	nameget := fmt.Sprintf("%s.get", name)
-	namepost := fmt.Sprintf("%s.post", name)
-	var config Map
-
-	//搜索定义
-	if vv, ok := mHttp.router.chunkdata(name).(Map); ok {
-		config = vv
-	} else if vv, ok := mHttp.router.chunkdata(nameget).(Map); ok {
-		config = vv
-	} else if vv, ok := mHttp.router.chunkdata(namepost).(Map); ok {
-		config = vv
-	} else {
-		//没有找到路由定义
-		return name
-	}
-
-	if config["socket"] != nil {
-		options["[socket]"] = true
-	}
-
-	uri := ""
-	if vv, ok := config["uri"].(string); ok {
-		uri = vv
-	} else if vv, ok := config["uris"].([]string); ok && len(vv) > 0 {
-		uri = vv[0]
-	} else {
-		return "[no uri here]"
-	}
-
-	argsConfig := Map{}
-	if c, ok := config["args"].(Map); ok {
-		argsConfig = c
-	}
-
-	//选项处理
-	if options[URL_BACK] != nil && url.ctx != nil {
-		var url = url.Back()
-		querys[BACKURL] = Encrypt(url)
-	}
-	//选项处理
-	if options[URL_LAST] != nil && url.ctx != nil {
-		var url = url.Last()
-		querys[BACKURL] = Encrypt(url)
-	}
-	//选项处理
-	if options[URL_CURRENT] != nil && url.ctx != nil {
-		var url = url.Current()
-		querys[BACKURL] = Encrypt(url)
-	}
-	//自动携带原有的query信息
-	if options[URL_QUERY] != nil && url.ctx != nil {
-		for k, v := range url.ctx.Query {
-			querys[k] = v
-		}
-	}
-
-	//所以，解析uri中的参数，值得分几类：
-	//1传的值，2param值, 3默认值
-	//其中主要问题就是，传的值，需要到args解析，用于加密，这个值和auto值完全重叠了，除非分2次解析
-	//为了框架好用，真是操碎了心
-	dataValues, paramValues, autoValues := Map{}, Map{}, Map{}
-
-	//1. 处理传过来的值
-	//从value中获取
-	//如果route不定义args，这里是拿不到值的
-	dataArgsValues, dataParseValues := Map{}, Map{}
-	for k, v := range params {
-		if k[0:1] == "{" {
-			k = strings.Replace(k, "{", "", -1)
-			k = strings.Replace(k, "}", "", -1)
-			dataArgsValues[k] = v
-		} else {
-			//这个也要？要不然指定的一些page啥的不行？
-			dataArgsValues[k] = v
-			//另外的是query的值
-			querys[k] = v
-		}
-	}
-
-	//上下文
-	var ctx *Context
-	if url.ctx != nil {
-		ctx = &url.ctx.Context
-	}
-
-	dataErr := mBase.Mapping(argsConfig, dataArgsValues, dataParseValues, false, true, ctx)
-	if dataErr == nil {
-		for k, v := range dataParseValues {
-
-			//注意，这里能拿到的，还有非param，所以不能直接用加{}写入
-			if _, ok := params[k]; ok {
-				dataValues[k] = v
-			} else if _, ok := params["{"+k+"}"]; ok {
-				dataValues["{"+k+"}"] = v
-			} else {
-				//这里是默认值应该，就不需要了
-			}
-		}
-	}
-
-	//所以这里还得处理一次，如果route不定义args，parse就拿不到值，就直接用values中的值
-	for k, v := range params {
-		if k[0:1] == "{" && dataValues[k] == nil {
-			dataValues[k] = v
-		}
-	}
-
-	//2.params中的值
-	//从params中来一下，直接参数解析
-	if url.ctx != nil {
-		for k, v := range url.ctx.Param {
-			paramValues["{"+k+"}"] = v
-		}
-	}
-
-	//3. 默认值
-	//从value中获取
-	autoArgsValues, autoParseValues := Map{}, Map{}
-	autoErr := mBase.Mapping(argsConfig, autoArgsValues, autoParseValues, false, true, ctx)
-	if autoErr == nil {
-		for k, v := range autoParseValues {
-			autoValues["{"+k+"}"] = v
-		}
-	}
-
-	//开始替换值
-	regx := regexp.MustCompile(`\{[_\*A-Za-z0-9]+\}`)
-	uri = regx.ReplaceAllStringFunc(uri, func(p string) string {
-		key := strings.Replace(p, "*", "", -1)
-
-		if v, ok := dataValues[key]; ok {
-			//for query string encode/decode
-			delete(dataValues, key)
-			//先从传的值去取
-			return fmt.Sprintf("%v", v)
-		} else if v, ok := paramValues[key]; ok {
-			//再从params中去取
-			return fmt.Sprintf("%v", v)
-		} else if v, ok := autoValues[key]; ok {
-			//最后从默认值去取
-			return fmt.Sprintf("%v", v)
-		} else {
-			//有参数没有值,
-			return p
-		}
-	})
-
-	//get参数，考虑一下走mapping，自动加密参数不？
-	queryStrings := []string{}
-	for k, v := range querys {
-		sv := fmt.Sprintf("%v", v)
-		if sv != "" {
-			queryStrings = append(queryStrings, fmt.Sprintf("%v=%v", k, v))
-		}
-	}
-	if len(queryStrings) > 0 {
-		uri += "?" + strings.Join(queryStrings, "&")
-	}
-
-	if site, ok := options["[site]"].(string); ok && site != "" {
-		uri = url.Site(site, uri, options)
-	}
-
-	return uri
+	return &httpSite{module, name, root}
 }
 
-func (url *httpUrl) Site(name string, path string, options ...Map) string {
-	option := Map{}
-	if len(options) > 0 {
-		option = options[0]
-	}
-
-	uuu := ""
-	ssl, socket := false, false
-
-	//如果有上下文，如果是当前站点，就使用当前域
-	if url.ctx != nil && url.ctx.Site == name {
-		uuu = url.ctx.Host
-		if vv, ok := Config.Site[name]; ok {
-			ssl = vv.Ssl
-		}
-	} else if vv, ok := Config.Site[name]; ok {
-		ssl = vv.Ssl
-		if len(vv.Hosts) > 0 {
-			uuu = vv.Hosts[0]
-		}
-	} else {
-		uuu = "127.0.0.1"
-		//uuu = fmt.Sprintf("127.0.0.1:%v", Config.Http.Port)
-	}
-
-	if Mode == Developing && Config.Http.Port != 80 {
-		uuu = fmt.Sprintf("%s:%d", uuu, Config.Http.Port)
-	}
-
-	if option["[ssl]"] != nil {
-		ssl = true
-	}
-	if option["[socket]"] != nil {
-		socket = true
-	}
-
-	if socket {
-		if ssl {
-			uuu = "wss://" + uuu
-		} else {
-			uuu = "ws://" + uuu
-		}
-	} else {
-		if ssl {
-			uuu = "https://" + uuu
-		} else {
-			uuu = "http://" + uuu
-		}
-	}
-
-	if path != "" {
-		return fmt.Sprintf("%s%s", uuu, path)
-	} else {
-		return uuu
-	}
+func Router(name string, config Map, overrides ...bool) {
+	ark.Http.Router(name, config, overrides...)
 }
 
-func (url *httpUrl) Backing() bool {
-	if url.req == nil {
-		return false
-	}
-
-	if s, ok := url.ctx.Query[BACKURL]; ok && s != "" {
-		return true
-	} else if url.req.Referer() != "" {
-		return true
-	}
-	return false
+func Filter(name string, config Map, overrides ...bool) {
+	ark.Http.Filter(name, config, overrides...)
+}
+func Handler(name string, config Map, overrides ...bool) {
+	ark.Http.Handler(name, config, overrides...)
 }
 
-func (url *httpUrl) Back() string {
-	if url.ctx == nil {
-		return "/"
-	}
-
-	if s, ok := url.ctx.Query[BACKURL].(string); ok && s != "" {
-		return Decrypt(s)
-	} else if url.ctx.Header("referer") != "" {
-		return url.ctx.Header("referer")
-	} else {
-		//都没有，就是当前URL
-		return url.Current()
-	}
+func Site(name string, roots ...string) *httpSite {
+	return ark.Http.newSite(name, roots...)
 }
-
-func (url *httpUrl) Last() string {
-	if url.req == nil {
-		return "/"
-	}
-
-	if ref := url.req.Referer(); ref != "" {
-		return ref
-	} else {
-		//都没有，就是当前URL
-		return url.Current()
-	}
-}
-
-func (url *httpUrl) Current() string {
-	if url.req == nil {
-		return "/"
-	}
-
-	// return url.req.URL.String()
-
-	// return fmt.Sprintf("%s://%s%s", url.req.URL., url.req.Host, url.req.URL.RequestURI())
-
-	return url.Site(url.ctx.Site, url.req.URL.RequestURI())
-}
-
-//为了view友好，expires改成Any，支持duration解析
-func (url *httpUrl) Download(target Any, name string, args ...Any) string {
-	if url.ctx == nil {
-		return ""
-	}
-
-	if coding, ok := target.(string); ok && coding != "" {
-
-		if strings.HasPrefix("http://", coding) || strings.HasPrefix("https://", coding) || strings.HasPrefix("ftp://", coding) {
-			return coding
-		}
-
-		expires := []time.Duration{}
-		if len(args) > 0 {
-			switch vv := args[0].(type) {
-			case int:
-				expires = append(expires, time.Second*time.Duration(vv))
-			case time.Duration:
-				expires = append(expires, vv)
-			case string:
-				if dd, ee := util.ParseDuration(vv); ee == nil {
-					expires = append(expires, dd)
-				}
-			}
-		}
-
-		return safeBrowse(coding, name, url.ctx.Id, url.ctx.Ip(), expires...)
-
-		//url.ctx.lastError = nil
-		//if uuu, err := mFile.Browse(coding, name, aaaaa, expires...); err != nil {
-		//	url.ctx.lastError = errResult(err)
-		//	return ""
-		//} else {
-		//	return uuu
-		//}
-	}
-
-	return "[无效下载]"
-}
-func (url *httpUrl) Browse(target Any, args ...Any) string {
-	if url.ctx == nil {
-		return ""
-	}
-
-	if coding, ok := target.(string); ok && coding != "" {
-
-		if strings.HasPrefix("http://", coding) || strings.HasPrefix("https://", coding) || strings.HasPrefix("ftp://", coding) {
-			return coding
-		}
-
-		expires := []time.Duration{}
-		if len(args) > 0 {
-			switch vv := args[0].(type) {
-			case int:
-				expires = append(expires, time.Second*time.Duration(vv))
-			case time.Duration:
-				expires = append(expires, vv)
-			case string:
-				if dd, ee := util.ParseDuration(vv); ee == nil {
-					expires = append(expires, dd)
-				}
-			}
-		}
-
-		return safeBrowse(coding, "", url.ctx.Id, url.ctx.Ip(), expires...)
-		//url.ctx.lastError = nil
-		//if uuu, err := mFile.Browse(coding, "", aaaaa, expires...); err != nil {
-		//	url.ctx.lastError = errResult(err)
-		//	return ""
-		//} else {
-		//	return uuu
-		//}
-	}
-
-	return "[无效文件]"
-}
-func (url *httpUrl) Preview(target Any, width, height, tttt int64, args ...Any) string {
-	if url.ctx == nil {
-		return ""
-	}
-
-	if coding, ok := target.(string); ok && coding != "" {
-
-		if strings.HasPrefix("http://", coding) || strings.HasPrefix("https://", coding) || strings.HasPrefix("ftp://", coding) {
-			return coding
-		}
-
-		expires := []time.Duration{}
-		if len(args) > 0 {
-			switch vv := args[0].(type) {
-			case int:
-				expires = append(expires, time.Second*time.Duration(vv))
-			case time.Duration:
-				expires = append(expires, vv)
-			case string:
-				if dd, ee := util.ParseDuration(vv); ee == nil {
-					expires = append(expires, dd)
-				}
-			}
-		}
-
-		return safePreview(coding, width, height, tttt, url.ctx.Id, url.ctx.Ip(), expires...)
-
-	}
-
-	return "/nothing.png"
+func Route(name string, args ...Map) string {
+	return ark.Http.url.Route(name, args...)
 }

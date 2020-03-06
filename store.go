@@ -341,20 +341,20 @@ func (module *storeModule) Thumbnail(code string, w, h, t int64) (string, File, 
 
 	//这里要处理，是file，或是 store，获取原文件不一样
 	sfile := ""
-	if data.conn == "" {
-		//获取存储的文件
-		_, _, fff, err := module.storaging(data)
+	if data.stored() {
+		conn := module.getConnect(data.conn)
+		if conn == nil {
+			return "", nil, errors.New("无效连接")
+		}
+		fff, err := conn.Download(data)
 		if err != nil {
 			return "", nil, err
 		} else {
 			sfile = fff
 		}
 	} else {
-		conn := module.getConnect(data.conn)
-		if conn == nil {
-			return "", nil, errors.New("无效连接")
-		}
-		fff, err := conn.Download(data)
+		//获取存储的文件
+		_, _, fff, err := module.storaging(data)
 		if err != nil {
 			return "", nil, err
 		} else {
@@ -485,6 +485,9 @@ func (sc *storeFile) Fullname() string {
 // 	return sc.Base != ""
 // }
 
+func (sc *storeFile) stored() bool {
+	return sc.conn != ""
+}
 func (sc *storeFile) isimage() bool {
 	return sc.tttt == "jpg" ||
 		sc.tttt == "png" ||

@@ -24,13 +24,9 @@ import (
 
 type (
 	context interface {
-		Lang() string
-		Zone() *time.Location
-		Data(bases ...string) DataBase
+		lang() string
+		zone() *time.Location
 	}
-
-	HttpHeaders = map[string]string
-	HttpCookies = map[string]http.Cookie
 
 	HttpFunc func(*Http)
 	Http     struct {
@@ -39,7 +35,7 @@ type (
 		lastError *Res
 
 		thread   HttpThread
-		requqest *http.Request
+		request  *http.Request
 		response http.ResponseWriter
 
 		databases map[string]DataBase
@@ -56,13 +52,17 @@ type (
 		Site   string //站点key
 		Method string //请求方法，大写
 		Host   string //请求域名
+		domain string
 		Path   string //请求路径
 		Uri    string //请求uri
+		Ajax   bool
 
-		headers HttpHeaders
-		cookies HttpCookies
-		// sessions HttpSessions
+		headers        map[string]string
+		cookies        map[string]http.Cookie
+		sessions       map[string]Any
+		sessionchanged bool
 
+		Client Map //客户端信息
 		Params Map //uri 中的参数
 		Query  Map //querystring 参数
 		Form   Map //表单参数
@@ -87,14 +87,15 @@ func httpContext(thread HttpThread) *Http {
 	ctx := &Http{
 		index: 0, nexts: make([]HttpFunc, 0), databases: make(map[string]DataBase),
 		Charset: UTF8, Lang: DEFAULT, Zone: time.Local,
-		thread: thread, requqest: thread.Request(), response: thread.Response(),
-		headers: make(HttpHeaders), cookies: make(HttpCookies),
-		Params: make(Map), Query: make(Map), Form: make(Map), Upload: make(Map), Data: make(Map),
+		thread: thread, request: thread.Request(), response: thread.Response(),
+		headers: make(map[string]string), cookies: make(map[string]http.Cookie), sessions: make(Map),
+		Client: make(Map), Params: make(Map), Query: make(Map), Form: make(Map), Upload: make(Map), Data: make(Map),
 		Value: make(Map), Args: make(Map), Auth: make(Map), Item: make(Map), Local: make(Map),
 	}
 
 	ctx.Name = thread.Name()
 	ctx.Site = thread.Site()
+	ctx.Params = thread.Params()
 
 	ctx.Method = strings.ToUpper(ctx.request.Method)
 	ctx.Uri = ctx.request.RequestURI
@@ -109,23 +110,19 @@ func httpContext(thread HttpThread) *Http {
 		}
 	}
 	if ctx.Site == "" {
-		if site, ok := Config.hosts[ctx.Host]; ok {
+		if site, ok := ark.Config.hosts[ctx.Host]; ok {
 			ctx.Site = site
 		}
 	}
 
-	if vvvv, ookk := Config.Site[ctx.Site]; ookk {
+	if vvvv, ookk := ark.Config.Site[ctx.Site]; ookk {
 		ctx.siteConfig = vvvv
 	} else {
 		ctx.siteConfig = SiteConfig{}
 	}
 
 	//获取根域名
-	ctx.domain = ctx.request.Host
-	if strings.Contains(ctx.domain, ":") {
-		ctx.domain = strings.Split(ctx.domain, ":")[0]
-	}
-	parts := strings.Split(ctx.domain, ".")
+	parts := strings.Split(ctx.Host, ".")
 	if len(parts) >= 2 {
 		l := len(parts)
 		ctx.domain = parts[l-2] + "." + parts[l-1]
@@ -136,6 +133,13 @@ func httpContext(thread HttpThread) *Http {
 	}
 
 	return ctx
+}
+
+func (ctx *Http) lang() string {
+	return ctx.Lang
+}
+func (ctx *Http) zone() *time.Location {
+	return ctx.Zone
 }
 
 //最终的清理工作
@@ -201,7 +205,28 @@ func (ctx *Http) sessional(defs ...bool) bool {
 		sessional = true
 	}
 
+	//如果SESSION已经被更新
+	if ctx.sessionchanged {
+		sessional = true
+	}
+
 	return sessional
+}
+
+func (ctx *Http) dataBase(bases ...string) DataBase {
+	base := DEFAULT
+	if len(bases) > 0 {
+		base = bases[0]
+	} else {
+		for key, _ := range ark.Data.connects {
+			base = key
+			break
+		}
+	}
+	if _, ok := ctx.databases[base]; ok == false {
+		ctx.databases[base] = ark.Data.Base(base)
+	}
+	return ctx.databases[base]
 }
 
 //客户端请求校验
@@ -209,7 +234,7 @@ func (ctx *Http) sessional(defs ...bool) bool {
 //设备，系统，版本，客户端，版本号，时间戳，签名
 //{device}/{system}/{version}/{client}/{number}/{time}/{sign}
 func (ctx *Http) clientHandler() *Res {
-	//var req = ctx.req.Reader
+	//var req = ctx.request.Reader
 
 	checking := true
 	coding := "text"
@@ -248,7 +273,7 @@ func (ctx *Http) clientHandler() *Res {
 		"client": cs,
 	}
 	value := Map{}
-	err := mBase.Mapping(args, data, value, false, false, &ctx.Context)
+	err := ark.Basic.Mapping(args, data, value, false, false, ctx)
 	if err != nil {
 		return Invalid
 	}
@@ -281,10 +306,6 @@ func (ctx *Http) clientHandler() *Res {
 
 	if sign != vals[6] && checking {
 		//Debug("ClientSign", ctx.Uri, sign, data["client"], value["client"])
-		Debug("format", format)
-		Debug("sign", sign)
-		Debug("path", ctx.Uri)
-		Debug("client", value["client"])
 		return Invalid
 	}
 
@@ -316,12 +337,12 @@ func (ctx *Http) formUploadHandler(values []string) []Map {
 					hash := fmt.Sprintf("%x", h.Sum(nil))
 
 					mimeType := arr[1]
-					extension := mBase.Typemime(mimeType)
+					extension := ark.Basic.Extension(mimeType)
 					filename := fmt.Sprintf("%s.%s", hash, extension)
 					length := len(baseBytes)
 
 					//保存临时文件
-					tempfile := path.Join(Config.Path.Upload, fmt.Sprintf("%s_%s", Name, hash))
+					tempfile := path.Join(ark.Config.Http.Upload, fmt.Sprintf("%s_%s", ark.Config.Name, hash))
 					if extension != "" {
 						tempfile = fmt.Sprintf("%s.%s", tempfile, extension)
 					}
@@ -348,11 +369,10 @@ func (ctx *Http) formUploadHandler(values []string) []Map {
 }
 
 func (ctx *Http) formHandler() *Res {
-	var req = ctx.req.Reader
+	var req = ctx.request
 
 	//URL中的参数
-	for k, v := range ctx.req.Params {
-		ctx.Param[k] = v
+	for k, v := range ctx.Params {
 		ctx.Value[k] = v
 	}
 
@@ -388,7 +408,7 @@ func (ctx *Http) formHandler() *Res {
 					accept = accept[0:i]
 				}
 				//遍历匹配
-				for lang, config := range Config.Lang {
+				for lang, config := range ark.Config.Lang {
 					for _, acccc := range config.Accepts {
 						if strings.ToLower(acccc) == strings.ToLower(accept) {
 							ctx.Lang = lang
@@ -420,7 +440,7 @@ func (ctx *Http) formHandler() *Res {
 						ctx.Value[k] = v
 
 						if vs, ok := v.(string); ok {
-							baseFiles := module.formUploadHandler([]string{vs})
+							baseFiles := ctx.formUploadHandler([]string{vs})
 							if len(baseFiles) > 0 {
 								uploads[k] = baseFiles
 							}
@@ -433,7 +453,7 @@ func (ctx *Http) formHandler() *Res {
 							}
 
 							if len(vsList) > 0 {
-								baseFiles := module.formUploadHandler(vsList)
+								baseFiles := ctx.formUploadHandler(vsList)
 								if len(baseFiles) > 0 {
 									uploads[k] = baseFiles
 								}
@@ -521,7 +541,7 @@ func (ctx *Http) formHandler() *Res {
 								hash = fmt.Sprintf("%x", h.Sum(nil))
 
 								//保存临时文件
-								tempfile = path.Join(Config.Path.Upload, fmt.Sprintf("%s_%s", Name, hash))
+								tempfile = path.Join(ark.Config.Http.Upload, fmt.Sprintf("%s_%s", ark.Config.Name, hash))
 								if extension != "" {
 									tempfile = fmt.Sprintf("%s.%s", tempfile, extension)
 								}
@@ -587,7 +607,7 @@ func (ctx *Http) formHandler() *Res {
 				}
 
 				//解析base64文件 begin
-				baseFiles := module.formUploadHandler([]string(v))
+				baseFiles := ctx.formUploadHandler([]string(v))
 				if len(baseFiles) > 0 {
 					uploads[k] = baseFiles
 				}
@@ -722,7 +742,7 @@ func (ctx *Http) argsHandler() *Res {
 
 	if argsConfig, ok := ctx.Config["args"].(Map); ok {
 		argsValue := Map{}
-		err := mBase.Mapping(argsConfig, ctx.Value, argsValue, argn, false, ctx)
+		err := ark.Basic.Mapping(argsConfig, ctx.Value, argsValue, argn, false, ctx)
 		if err != nil {
 			return err
 		}
@@ -738,7 +758,7 @@ func (ctx *Http) argsHandler() *Res {
 //处理认证
 func (ctx *Http) authHandler() *Res {
 
-	if auths, ok := ctx.Config[kAUTH].(Map); ok {
+	if auths, ok := ctx.Config["auth"].(Map); ok {
 		saveMap := Map{}
 
 		for authKey, authMap := range auths {
@@ -750,15 +770,15 @@ func (ctx *Http) authHandler() *Res {
 			ohNo := false
 			authConfig := authMap.(Map)
 
-			if vv, ok := authConfig[kSIGN].(string); ok == false || vv == "" {
+			if vv, ok := authConfig["sign"].(string); ok == false || vv == "" {
 				continue
 			}
 
-			authSign := authConfig[kSIGN].(string)
+			authSign := authConfig["sign"].(string)
 			authMust := false
 			// authName := authSign
 
-			if vv, ok := authConfig[kMUST].(bool); ok {
+			if vv, ok := authConfig["must"].(bool); ok {
 				authMust = vv
 			}
 			// if vv,ok := authConfig[kNAME].(string); ok && vv!="" {
@@ -795,11 +815,11 @@ func (ctx *Http) authHandler() *Res {
 
 					if item == nil {
 						if authMust {
-							if vv, ok := authConfig[kERROR].(*Res); ok {
+							if vv, ok := authConfig["error"].(*Res); ok {
 								return vv
 							} else {
 								errKey := ".auth.error"
-								if vv, ok := authConfig[kERROR].(string); ok {
+								if vv, ok := authConfig["error"].(string); ok {
 									errKey = vv
 								}
 								return newResult(errKey + "." + authKey)
@@ -817,11 +837,11 @@ func (ctx *Http) authHandler() *Res {
 			//到这里是未登录的
 			//而且是必须要登录，才显示错误
 			if ohNo && authMust {
-				if vv, ok := authConfig[kEMPTY].(*Res); ok {
+				if vv, ok := authConfig["empty"].(*Res); ok {
 					return vv
 				} else {
 					errKey := ".auth.empty"
-					if vv, ok := authConfig[kEMPTY].(string); ok {
+					if vv, ok := authConfig["empty"].(string); ok {
 						errKey = vv
 					}
 					return newResult(errKey + "." + authKey)
@@ -841,7 +861,7 @@ func (ctx *Http) authHandler() *Res {
 //Entity实体处理
 func (ctx *Http) itemHandler() *Res {
 
-	if cfg, ok := ctx.Config[kITEM].(Map); ok {
+	if cfg, ok := ctx.Config["item"].(Map); ok {
 		saveMap := Map{}
 
 		for itemKey, v := range cfg {
@@ -849,7 +869,7 @@ func (ctx *Http) itemHandler() *Res {
 
 				//是否必须
 				must := true
-				if vv, ok := config[kMUST].(bool); ok {
+				if vv, ok := config["must"].(bool); ok {
 					must = vv
 				}
 
@@ -860,7 +880,7 @@ func (ctx *Http) itemHandler() *Res {
 
 				realKey := itemKey
 				var realVal Any
-				if vv, ok := config[kARGS].(string); ok {
+				if vv, ok := config["args"].(string); ok {
 					realKey = vv
 					realVal = ctx.Args[realKey]
 					//} else if vv, ok := config[kPARAM].(string); ok {
@@ -869,10 +889,10 @@ func (ctx *Http) itemHandler() *Res {
 					//} else if vv, ok := config[kQUERY].(string); ok {
 					//	realKey = vv
 					//	realVal = ctx.Query[realKey]
-				} else if vv, ok := config[kVALUE].(string); ok {
+				} else if vv, ok := config["value"].(string); ok {
 					realKey = vv
 					realVal = ctx.Value[realKey]
-				} else if vv, ok := config[kKEY].(string); ok {
+				} else if vv, ok := config["key"].(string); ok {
 					realKey = vv
 					realVal = ctx.Value[realKey]
 				} else {
@@ -880,11 +900,11 @@ func (ctx *Http) itemHandler() *Res {
 				}
 
 				if realVal == nil && must {
-					if vv, ok := config[kEMPTY].(*Res); ok {
+					if vv, ok := config["empty"].(*Res); ok {
 						return vv
 					} else {
 						errKey := ".item.empty"
-						if vv, ok := config[kEMPTY].(string); ok {
+						if vv, ok := config["empty"].(string); ok {
 							errKey = vv
 						}
 						return newResult(errKey + "." + itemKey)
@@ -917,11 +937,11 @@ func (ctx *Http) itemHandler() *Res {
 						db := ctx.dataBase(base)
 						item := db.Table(table).Entity(realVal)
 						if must && (db.Erred() != nil || item == nil) {
-							if vv, ok := config[kERROR].(*Res); ok {
+							if vv, ok := config["error"].(*Res); ok {
 								return vv
 							} else {
 								errKey := ".item.error"
-								if vv, ok := config[kERROR].(string); ok {
+								if vv, ok := config["error"].(string); ok {
 									errKey = vv
 								}
 								return newResult(errKey + "." + itemKey)
@@ -974,7 +994,7 @@ func (ctx *Http) Header(key string, vals ...string) string {
 		return vals[0]
 	} else {
 		//读header
-		return ctx.req.Reader.Header.Get(key)
+		return ctx.request.Header.Get(key)
 	}
 }
 
@@ -982,24 +1002,29 @@ func (ctx *Http) Header(key string, vals ...string) string {
 func (ctx *Http) Cookie(key string, vals ...Any) string {
 	//这个方法同步加密
 	if len(vals) > 0 {
-
-		//设置header
-		switch val := vals[0].(type) {
-		case http.Cookie:
-			// val.Value = url.QueryEscape(val.Value)
-			val.Value = Encrypt(val.Value)
-			ctx.cookies[key] = val
-		case string:
-			cookie := http.Cookie{Name: key, Value: val, Path: "/", HttpOnly: true}
-			cookie.Value = Encrypt(cookie.Value)
+		vvv := vals[0]
+		if vvv == nil {
+			cookie := http.Cookie{Name: key, HttpOnly: true}
+			cookie.MaxAge = -1
 			ctx.cookies[key] = cookie
-		default:
 			return ""
-		}
+		} else {
 
+			switch val := vvv.(type) {
+			case http.Cookie:
+				// val.Value = url.QueryEscape(val.Value)
+				val.Value = Encrypt(val.Value)
+				ctx.cookies[key] = val
+			case string:
+				cookie := http.Cookie{Name: key, Value: Encrypt(val), Path: "/", HttpOnly: true}
+				ctx.cookies[key] = cookie
+			default:
+				return ""
+			}
+		}
 	} else {
 		//读cookie
-		c, e := ctx.req.Reader.Cookie(key)
+		c, e := ctx.request.Cookie(key)
 		if e == nil {
 			//解密cookie，这里解密，为什么到最后才加密， 应该一起加解密，写入的时候不处理了
 			return Decrypt(c.Value)
@@ -1008,88 +1033,138 @@ func (ctx *Http) Cookie(key string, vals ...Any) string {
 	return ""
 }
 
+func (ctx *Http) Session(key string, vals ...Any) Any {
+	if len(vals) > 0 {
+		ctx.sessionchanged = true
+		val := vals[0]
+		if val == nil {
+			//删除SESSION
+			delete(ctx.sessions, key)
+		} else {
+			//写入session
+			ctx.sessions[key] = val
+		}
+		return val
+	} else {
+		return ctx.sessions[key]
+	}
+}
+
+//获取langString
+func (ctx *Http) String(key string, args ...Any) string {
+	return ark.Basic.String(ctx.Lang, key, args...)
+}
+
+//----------------------- 签名系统 begin ---------------------------------
+func (ctx *Http) signKey(key string) string {
+	return fmt.Sprintf("$.sign.%s", key)
+}
+func (ctx *Http) Signed(key string) bool {
+	key = ctx.signKey(key)
+	if ctx.Session(key) != nil {
+		return true
+	}
+	return false
+}
+func (ctx *Http) Signin(key string, id, name Any) {
+	key = ctx.signKey(key)
+	ctx.Session(key, Map{
+		"id": fmt.Sprintf("%v", id), "name": fmt.Sprintf("%v", name),
+	})
+}
+func (ctx *Http) Signout(key string) {
+	key = ctx.signKey(key)
+	ctx.Session(key, nil)
+}
+func (ctx *Http) Signal(key string) string {
+	key = ctx.signKey(key)
+	if vv, ok := ctx.Session(key).(Map); ok {
+		if id, ok := vv["id"].(string); ok {
+			return id
+		}
+	}
+	return ""
+}
+func (ctx *Http) Signer(key string) string {
+	key = ctx.signKey(key)
+	if vv, ok := ctx.Session(key).(Map); ok {
+		if id, ok := vv["name"].(string); ok {
+			return id
+		}
+	}
+	return ""
+}
+
+//----------------------- 签名系统 end ---------------------------------
+
 //远程存储代理
 func (ctx *Http) Remote(code string, names ...string) {
 	//判断处理，是文件系统，还是存储系统
-	coding := Decoding(code)
+	coding := ark.Store.Decode(code)
 	if coding == nil {
 		ctx.Found()
 		return
 	}
 
-	if coding.isFile() {
-		ctx.Download(code, names...)
-	} else {
-
-		name := ""
-		if len(names) > 0 {
-			name = names[0]
-		}
-
-		sb := ctx.Store(coding.Base)
-		url := sb.Browse(code, name)
-		if err := sb.Erred(); err != nil {
-			ctx.Error(errResult(err))
+	if coding.stored() {
+		if coding.Type() == "apk" {
+			ctx.Download(code, names...)
 		} else {
 
-			//因为apk文件ipfs会变成zip，所以要单独处理一下
-			if coding.Type == "apk" {
-				ctx.Download(code, names...)
+			name := ""
+			if len(names) > 0 {
+				name = names[0]
+			}
+			url := ark.Store.Browse(code, name)
+			if url == "" {
+				ctx.Found()
 			} else {
 				ctx.Proxy(url)
 			}
 		}
+
+	} else {
+		ctx.Download(code, names...)
 	}
 }
 func (ctx *Http) Download(code string, names ...string) {
 
 	//判断处理，是文件系统，还是存储系统
-	coding := Decoding(code)
+	coding := ark.Store.Decode(code)
 	if coding == nil {
 		ctx.Found()
 		return
 	}
 
-	if coding.isFile() {
-		//老的文件系统
+	file, err := ark.Store.Download(code)
+	if err != nil {
+		ctx.Found()
+		return
+	}
 
-		file := mFile.Download(code)
-		if file == "" {
-			ctx.Error(Fail)
-		} else {
-			ctx.File(file, coding.Type, names...)
+	if len(names) > 0 {
+		//自动加扩展名
+		if coding.Type() != "" && !strings.HasSuffix(names[0], coding.Type()) {
+			names[0] += "." + coding.Type()
 		}
-
 	} else {
-		//新的存储系统
-		sb := ctx.Store(coding.Base)
-		file := sb.Download(code)
-		if err := sb.Erred(); err != nil {
-			ctx.Error(errResult(err))
-		} else {
-			//无图片指定默认文件名和扩展名，这样比较好
-			if len(names) == 0 && coding.Type != "" && coding.IsImage() == false {
-				names = append(names, coding.Hash+"."+coding.Type)
-			} else {
-				//自动加扩展名
-				if strings.HasSuffix(names[0], coding.Type) == false && coding.Type != "" {
-					names[0] += "." + coding.Type
-				}
-			}
-
-			ctx.File(file, coding.Type, names...)
+		//未指定下载名的话，除了图片，全部自动加文件名
+		if !(coding.isimage() || coding.isvideo() || coding.isaudio()) {
+			names = append(names, coding.Hash()+"."+coding.Type())
 		}
 	}
+
+	ctx.File(file, coding.Type(), names...)
 }
 
 //生成并返回缩略图
 func (ctx *Http) Thumbnail(code string, width, height, tttt int64) {
-	file, data, err := mFile.Thumbnail(code, width, height, tttt)
+	file, data, err := ark.Store.Thumbnail(code, width, height, tttt)
 	if err != nil {
 		//ctx.Error(errResult(err))
-		ctx.File(path.Join(Config.Path.Static, "shared", "nothing.png"), "png")
+		ctx.File(path.Join(ark.Config.Http.Static, "shared", "nothing.png"), "png")
 	} else {
-		ctx.File(file, data.Type)
+		ctx.File(file, data.Type())
 	}
 }
 
@@ -1305,7 +1380,7 @@ func (ctx *Http) Alert(res *Res, urls ...string) {
 		vv.buffer.Close()
 	}
 
-	code := mBase.Code(res.Text, res.Code)
+	code := ark.Basic.Code(res.Text, res.Code)
 	text := ctx.String(res.Text, res.Args...)
 
 	if code == 0 {
@@ -1325,7 +1400,7 @@ func (ctx *Http) Alert(res *Res, urls ...string) {
 
 //展示通用的提示页面
 func (ctx *Http) Show(res *Res, urls ...string) {
-	code := mBase.Code(res.Text, res.Code)
+	code := ark.Basic.Code(res.Text, res.Code)
 	text := ctx.String(res.Text, res.Args...)
 
 	if res.OK() {
@@ -1344,8 +1419,8 @@ func (ctx *Http) Show(res *Res, urls ...string) {
 		m["url"] = urls[0]
 	}
 
-	ctx.Data[kSHOW] = m
-	ctx.View(kSHOW)
+	ctx.Data["show"] = m
+	ctx.View("show")
 }
 
 //返回操作结果，表示成功
@@ -1363,7 +1438,7 @@ func (ctx *Http) Answer(res *Res, args ...Map) {
 	code := 0
 	text := ""
 	if res != nil {
-		code = mBase.Code(res.Text, res.Code)
+		code = ark.Basic.Code(res.Text, res.Code)
 		text = ctx.String(res.Text, res.Args...)
 	}
 
@@ -1396,14 +1471,12 @@ func (ctx *Http) UserAgent() string {
 func (ctx *Http) Ip() string {
 	ip := "127.0.0.1"
 
-	req := ctx.req.Reader
-
-	if forwarded := req.Header.Get("x-forwarded-for"); forwarded != "" {
+	if forwarded := ctx.request.Header.Get("x-forwarded-for"); forwarded != "" {
 		ip = forwarded
-	} else if realIp := req.Header.Get("X-Real-IP"); realIp != "" {
+	} else if realIp := ctx.request.Header.Get("X-Real-IP"); realIp != "" {
 		ip = realIp
 	} else {
-		newip, _, err := net.SplitHostPort(req.RemoteAddr)
+		newip, _, err := net.SplitHostPort(ctx.request.RemoteAddr)
 		if err == nil {
 			ip = newip
 		}

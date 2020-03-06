@@ -62,7 +62,7 @@ func (url *httpUrl) Route(name string, values ...Map) string {
 			justSite = currSite
 		} else {
 			//只能随机选一个站点了
-			for site, _ := range Config.Site {
+			for site, _ := range ark.Config.Site {
 				justSite = site
 				break
 			}
@@ -82,11 +82,11 @@ func (url *httpUrl) Route(name string, values ...Map) string {
 	var config Map
 
 	//搜索定义
-	if vv, ok := mHttp.router.chunkdata(name).(Map); ok {
+	if vv, ok := ark.Http.routers[name]; ok {
 		config = vv
-	} else if vv, ok := mHttp.router.chunkdata(nameget).(Map); ok {
+	} else if vv, ok := ark.Http.routers[nameget]; ok {
 		config = vv
-	} else if vv, ok := mHttp.router.chunkdata(namepost).(Map); ok {
+	} else if vv, ok := ark.Http.routers[namepost]; ok {
 		config = vv
 	} else {
 		//没有找到路由定义
@@ -112,22 +112,22 @@ func (url *httpUrl) Route(name string, values ...Map) string {
 	}
 
 	//选项处理
-	if options[URL_BACK] != nil && url.ctx != nil {
+	if options["[back]"] != nil && url.ctx != nil {
 		var url = url.Back()
-		querys[BACKURL] = Encrypt(url)
+		querys["backurl"] = Encrypt(url)
 	}
 	//选项处理
-	if options[URL_LAST] != nil && url.ctx != nil {
+	if options["[last]"] != nil && url.ctx != nil {
 		var url = url.Last()
-		querys[BACKURL] = Encrypt(url)
+		querys["backurl"] = Encrypt(url)
 	}
 	//选项处理
-	if options[URL_CURRENT] != nil && url.ctx != nil {
+	if options["[current]"] != nil && url.ctx != nil {
 		var url = url.Current()
-		querys[BACKURL] = Encrypt(url)
+		querys["backurl"] = Encrypt(url)
 	}
 	//自动携带原有的query信息
-	if options[URL_QUERY] != nil && url.ctx != nil {
+	if options["[query]"] != nil && url.ctx != nil {
 		for k, v := range url.ctx.Query {
 			querys[k] = v
 		}
@@ -157,12 +157,7 @@ func (url *httpUrl) Route(name string, values ...Map) string {
 	}
 
 	//上下文
-	var ctx *Context
-	if url.ctx != nil {
-		ctx = &url.ctx.Context
-	}
-
-	dataErr := mBase.Mapping(argsConfig, dataArgsValues, dataParseValues, false, true, ctx)
+	dataErr := ark.Basic.Mapping(argsConfig, dataArgsValues, dataParseValues, false, true, url.ctx)
 	if dataErr == nil {
 		for k, v := range dataParseValues {
 
@@ -187,7 +182,7 @@ func (url *httpUrl) Route(name string, values ...Map) string {
 	//2.params中的值
 	//从params中来一下，直接参数解析
 	if url.ctx != nil {
-		for k, v := range url.ctx.Param {
+		for k, v := range url.ctx.Params {
 			paramValues["{"+k+"}"] = v
 		}
 	}
@@ -195,7 +190,7 @@ func (url *httpUrl) Route(name string, values ...Map) string {
 	//3. 默认值
 	//从value中获取
 	autoArgsValues, autoParseValues := Map{}, Map{}
-	autoErr := mBase.Mapping(argsConfig, autoArgsValues, autoParseValues, false, true, ctx)
+	autoErr := ark.Basic.Mapping(argsConfig, autoArgsValues, autoParseValues, false, true, url.ctx)
 	if autoErr == nil {
 		for k, v := range autoParseValues {
 			autoValues["{"+k+"}"] = v
@@ -255,21 +250,21 @@ func (url *httpUrl) Site(name string, path string, options ...Map) string {
 	//如果有上下文，如果是当前站点，就使用当前域
 	if url.ctx != nil && url.ctx.Site == name {
 		uuu = url.ctx.Host
-		if vv, ok := Config.Site[name]; ok {
+		if vv, ok := ark.Config.Site[name]; ok {
 			ssl = vv.Ssl
 		}
-	} else if vv, ok := Config.Site[name]; ok {
+	} else if vv, ok := ark.Config.Site[name]; ok {
 		ssl = vv.Ssl
 		if len(vv.Hosts) > 0 {
 			uuu = vv.Hosts[0]
 		}
 	} else {
 		uuu = "127.0.0.1"
-		//uuu = fmt.Sprintf("127.0.0.1:%v", Config.Http.Port)
+		//uuu = fmt.Sprintf("127.0.0.1:%v", ark.Config.Http.Port)
 	}
 
-	if Mode == Developing && Config.Http.Port != 80 {
-		uuu = fmt.Sprintf("%s:%d", uuu, Config.Http.Port)
+	if Mode == Developing && ark.Config.Http.Port != 80 {
+		uuu = fmt.Sprintf("%s:%d", uuu, ark.Config.Http.Port)
 	}
 
 	if option["[ssl]"] != nil {
@@ -305,7 +300,7 @@ func (url *httpUrl) Backing() bool {
 		return false
 	}
 
-	if s, ok := url.ctx.Query[BACKURL]; ok && s != "" {
+	if s, ok := url.ctx.Query["backurl"]; ok && s != "" {
 		return true
 	} else if url.req.Referer() != "" {
 		return true
@@ -318,7 +313,7 @@ func (url *httpUrl) Back() string {
 		return "/"
 	}
 
-	if s, ok := url.ctx.Query[BACKURL].(string); ok && s != "" {
+	if s, ok := url.ctx.Query["backurl"].(string); ok && s != "" {
 		return Decrypt(s)
 	} else if url.ctx.Header("referer") != "" {
 		return url.ctx.Header("referer")
@@ -379,7 +374,7 @@ func (url *httpUrl) Download(target Any, name string, args ...Any) string {
 			}
 		}
 
-		return safeBrowse(coding, name, url.ctx.Id, url.ctx.Ip(), expires...)
+		return ark.Store.safeBrowse(coding, name, url.ctx.Id, url.ctx.Ip(), expires...)
 
 		//url.ctx.lastError = nil
 		//if uuu, err := mFile.Browse(coding, name, aaaaa, expires...); err != nil {
@@ -417,7 +412,7 @@ func (url *httpUrl) Browse(target Any, args ...Any) string {
 			}
 		}
 
-		return safeBrowse(coding, "", url.ctx.Id, url.ctx.Ip(), expires...)
+		return ark.Store.safeBrowse(coding, "", url.ctx.Id, url.ctx.Ip(), expires...)
 		//url.ctx.lastError = nil
 		//if uuu, err := mFile.Browse(coding, "", aaaaa, expires...); err != nil {
 		//	url.ctx.lastError = errResult(err)
@@ -454,7 +449,7 @@ func (url *httpUrl) Preview(target Any, width, height, tttt int64, args ...Any) 
 			}
 		}
 
-		return safePreview(coding, width, height, tttt, url.ctx.Id, url.ctx.Ip(), expires...)
+		return ark.Store.safePreview(coding, width, height, tttt, url.ctx.Id, url.ctx.Ip(), expires...)
 
 	}
 

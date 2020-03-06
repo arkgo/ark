@@ -9,8 +9,8 @@ import (
 
 type (
 	logicModule struct {
-		mutex  sync.Mutex
-		methos map[string]Map
+		mutex   sync.Mutex
+		methods map[string]Map
 	}
 
 	logicLibrary struct {
@@ -35,7 +35,7 @@ type (
 
 func newLogic() *logicModule {
 	return &logicModule{
-		logics: make(map[string]Map, 0),
+		methods: make(map[string]Map, 0),
 	}
 }
 
@@ -73,10 +73,10 @@ func (module *logicModule) Logic(name string, settings ...Map) *logicLogic {
 	return &logicLogic{module, name, setting}
 }
 
-func (lib *serviceLibrary) Name() string {
+func (lib *logicLibrary) Name() string {
 	return lib.name
 }
-func (lib *serviceLibrary) Method(name string, config Map, overrides ...bool) {
+func (lib *logicLibrary) Method(name string, config Map, overrides ...bool) {
 	realName := fmt.Sprintf("%s.%s", lib.name, name)
 	lib.module.Method(realName, config, overrides...)
 }
@@ -92,7 +92,7 @@ func (lgc *Logic) Logic(bases ...string) DataBase {
 //-------------------------------------------------------------------------------------------------------
 
 func Method(name string, config Map, overrides ...bool) {
-	return ark.Logic.Method(name, config, overrides...)
+	ark.Logic.Method(name, config, overrides...)
 }
 
 func Library(name string) *logicLibrary {

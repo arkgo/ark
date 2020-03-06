@@ -124,13 +124,13 @@ func (module *sessionModule) Read(id string) (Map, error) {
 
 }
 
-func (module *sessionModule) Write(id string, value Map, expiry time.Duration) error {
+func (module *sessionModule) Write(id string, value Map, expiries ...time.Duration) error {
 	locate := DEFAULT
 	if module.hashring != nil {
 		locate = module.hashring.Locate(id)
 	}
 	if connect, ok := module.connects[locate]; ok {
-		return connect.Write(id, value, expiry)
+		return connect.Write(id, value, expiries...)
 	}
 
 	return errors.New("写入会话失败")

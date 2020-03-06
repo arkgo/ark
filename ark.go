@@ -27,6 +27,7 @@ type (
 
 		Session *sessionModule
 		Http    *httpModule
+		View    *viewModule
 
 		readied, running bool
 	}
@@ -53,7 +54,9 @@ type (
 		Session map[string]SessionConfig `toml:"session"`
 		Http    HttpConfig               `toml:"http"`
 		Site    map[string]SiteConfig    `toml:"site"`
-		hosts   map[string]string
+		View    ViewConfig               `toml:"view"`
+
+		hosts map[string]string
 
 		Setting Map `toml:"setting"`
 	}
@@ -71,8 +74,10 @@ func (ark *arkCore) Ready() {
 	ark.Store.initing()
 	ark.Cache.initing()
 	ark.Data.initing()
+
 	ark.Session.initing()
 	ark.Http.initing()
+	ark.View.initing()
 
 	ark.readied = true
 }
@@ -83,8 +88,9 @@ func (ark *arkCore) Start() {
 
 	//需要监听端口什么的，就需要start，主要是http，node端口，啥的
 	//因为有时候，会一些单独程序，需要连接库，但是不需要坚挺端口，比如，导入工具
+	ark.Http.Start()
 
-	ark.Logger.output("%s node %d started", ark.Config.Name, ark.Config.Node.Id)
+	ark.Logger.output("%s node %d started on %d", ark.Config.Name, ark.Config.Node.Id, ark.Config.Http.Port)
 	ark.running = true
 }
 func (ark *arkCore) Waiting() {
@@ -96,11 +102,12 @@ func (ark *arkCore) Stop() {
 
 	ark.Logger.output("%s node %d stopped", ark.Config.Name, ark.Config.Node.Id)
 
+	ark.View.exiting()
 	ark.Http.exiting()
 	ark.Session.exiting()
+
 	ark.Data.exiting()
 	ark.Cache.exiting()
-
 	ark.Store.exiting()
 	ark.Bus.exiting()
 

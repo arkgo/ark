@@ -157,7 +157,7 @@ func (module *serialModule) Unique(prefixs ...string) string {
 }
 
 func Encrypt(text string) string {
-	return ark.Serial.Decrypt(text)
+	return ark.Serial.Encrypt(text)
 }
 func Decrypt(code string) string {
 	return ark.Serial.Decrypt(code)
