@@ -41,7 +41,7 @@ type (
 		Write(key string, val Any, exps ...time.Duration) error
 		Exists(key string) (bool, error)
 		Delete(key string) error
-		Serial(key string, step int64) (int64, error)
+		Serial(key string, start, step int64) (int64, error)
 		Keys(prefixs ...string) ([]string, error)
 		Clear(prefixs ...string) error
 	}
@@ -183,7 +183,7 @@ func (module *cacheModule) Delete(key string, cons ...string) error {
 	return errors.New("删除缓存失败")
 }
 
-func (module *cacheModule) Serial(key string, step int64, cons ...string) (int64, error) {
+func (module *cacheModule) Serial(key string, start, step int64, cons ...string) (int64, error) {
 	con := DEFAULT
 	if len(cons) > 0 && cons[0] != "" {
 		con = cons[0]
@@ -192,7 +192,7 @@ func (module *cacheModule) Serial(key string, step int64, cons ...string) (int64
 	}
 
 	if connect, ok := module.connects[con]; ok {
-		return connect.Serial(key, step)
+		return connect.Serial(key, start, step)
 	}
 
 	return int64(0), errors.New("删除缓存失败")
@@ -280,8 +280,8 @@ func CacheClear(prefix string, cons ...string) error {
 	return ark.Cache.Clear(prefix, cons...)
 }
 
-func Sequence(key string, step int64, cons ...string) int64 {
-	num, err := ark.Cache.Serial(key, step, cons...)
+func Sequence(key string, start, step int64, cons ...string) int64 {
+	num, err := ark.Cache.Serial(key, start, step, cons...)
 	if err != nil {
 		return int64(0)
 	}
