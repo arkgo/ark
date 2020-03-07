@@ -953,7 +953,7 @@ func (module *httpModule) bodyScript(ctx *Http, body httpScriptBody) {
 func (module *httpModule) bodyJson(ctx *Http, body httpJsonBody) {
 	res := ctx.response
 
-	bytes, err := ark.Serial.Marshal(body.json)
+	bytes, err := ark.Codec.Marshal(body.json)
 	if err != nil {
 		//要不要发到统一的错误ctx.Error那里？再走一遍
 		http.Error(res, err.Error(), http.StatusInternalServerError)
@@ -970,7 +970,7 @@ func (module *httpModule) bodyJson(ctx *Http, body httpJsonBody) {
 func (module *httpModule) bodyJsonp(ctx *Http, body httpJsonpBody) {
 	res := ctx.response
 
-	bytes, err := ark.Serial.Marshal(body.json)
+	bytes, err := ark.Codec.Marshal(body.json)
 	if err != nil {
 		//要不要发到统一的错误ctx.Error那里？再走一遍
 		http.Error(res, err.Error(), http.StatusInternalServerError)

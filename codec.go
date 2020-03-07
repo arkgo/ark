@@ -12,7 +12,7 @@ import (
 )
 
 type (
-	serialConfig struct {
+	codecConfig struct {
 		Text   string `toml:"text"`
 		Digit  string `toml:"digit"`
 		Salt   string `toml:"salt"`
@@ -24,8 +24,8 @@ type (
 		NodeBits uint   `toml:"nodeBits"`
 		SeqBits  uint   `toml:"seqBits"`
 	}
-	serialModule struct {
-		config     serialConfig
+	codecModule struct {
+		config     codecConfig
 		fastid     *fastid.FastID
 		textCoder  *base64.Encoding
 		digitCoder *hashid.HashID
@@ -33,25 +33,25 @@ type (
 	}
 )
 
-func newSerial() *serialModule {
-	serial := &serialModule{}
+func newCodec() *codecModule {
+	codec := &codecModule{}
 
-	serial.fastid = fastid.NewFastIDWithConfig(ark.Config.Serial.TimeBits, ark.Config.Serial.NodeBits, ark.Config.Serial.SeqBits, ark.Config.Serial.begin, ark.Config.Node.Id)
-	serial.textCoder = base64.NewEncoding(ark.Config.Serial.Text)
+	codec.fastid = fastid.NewFastIDWithConfig(ark.Config.Codec.TimeBits, ark.Config.Codec.NodeBits, ark.Config.Codec.SeqBits, ark.Config.Codec.begin, ark.Config.Node.Id)
+	codec.textCoder = base64.NewEncoding(ark.Config.Codec.Text)
 	coder, err := hashid.NewWithData(&hashid.HashIDData{
-		Alphabet: ark.Config.Serial.Digit, Salt: ark.Config.Serial.Salt, MinLength: ark.Config.Serial.Length,
+		Alphabet: ark.Config.Codec.Digit, Salt: ark.Config.Codec.Salt, MinLength: ark.Config.Codec.Length,
 	})
 	if err != nil {
 		panic("[序列]无效的配置")
 	}
-	serial.digitCoder = coder
+	codec.digitCoder = coder
 
-	serial.jsonCodec = jsoniter.ConfigCompatibleWithStandardLibrary
+	codec.jsonCodec = jsoniter.ConfigCompatibleWithStandardLibrary
 
-	return serial
+	return codec
 }
 
-func (module *serialModule) Encrypt(text string) string {
+func (module *codecModule) Encrypt(text string) string {
 	if module.textCoder != nil {
 		return module.textCoder.EncodeToString([]byte(text))
 	}
@@ -59,7 +59,7 @@ func (module *serialModule) Encrypt(text string) string {
 	//return text
 	return ""
 }
-func (module *serialModule) Decrypt(code string) string {
+func (module *codecModule) Decrypt(code string) string {
 	if module.textCoder != nil {
 		d, e := module.textCoder.DecodeString(code)
 		if e == nil {
@@ -71,14 +71,14 @@ func (module *serialModule) Decrypt(code string) string {
 	//return code
 	return ""
 }
-func (module *serialModule) Encrypts(texts []string) string {
+func (module *codecModule) Encrypts(texts []string) string {
 	text := strings.Join(texts, "\n")
 	if module.textCoder != nil {
 		return module.textCoder.EncodeToString([]byte(text))
 	}
 	return ""
 }
-func (module *serialModule) Decrypts(code string) []string {
+func (module *codecModule) Decrypts(code string) []string {
 	if module.textCoder != nil {
 		text, e := module.textCoder.DecodeString(code)
 		if e == nil {
@@ -88,10 +88,10 @@ func (module *serialModule) Decrypts(code string) []string {
 	return []string{}
 }
 
-func (module *serialModule) Enhash(digit int64, lengths ...int) string {
+func (module *codecModule) Enhash(digit int64, lengths ...int) string {
 	return module.Enhashs([]int64{digit}, lengths...)
 }
-func (module *serialModule) Dehash(code string, lengths ...int) int64 {
+func (module *codecModule) Dehash(code string, lengths ...int) int64 {
 	digits := module.Dehashs(code, lengths...)
 	if len(digits) > 0 {
 		return digits[0]
@@ -101,15 +101,15 @@ func (module *serialModule) Dehash(code string, lengths ...int) int64 {
 }
 
 //因为要自定义长度，所以动态创建对象
-func (module *serialModule) Enhashs(digits []int64, lengths ...int) string {
+func (module *codecModule) Enhashs(digits []int64, lengths ...int) string {
 	coder := module.digitCoder
 
 	if len(lengths) > 0 {
 		length := lengths[0]
 
 		hd := hashid.NewData()
-		hd.Alphabet = ark.Config.Serial.Digit
-		hd.Salt = ark.Config.Serial.Salt
+		hd.Alphabet = ark.Config.Codec.Digit
+		hd.Salt = ark.Config.Codec.Salt
 		if length > 0 {
 			hd.MinLength = length
 		}
@@ -127,15 +127,15 @@ func (module *serialModule) Enhashs(digits []int64, lengths ...int) string {
 }
 
 //因为要自定义长度，所以动态创建对象
-func (module *serialModule) Dehashs(code string, lengths ...int) []int64 {
+func (module *codecModule) Dehashs(code string, lengths ...int) []int64 {
 	coder := module.digitCoder
 
 	if len(lengths) > 0 {
 		length := lengths[0]
 
 		hd := hashid.NewData()
-		hd.Alphabet = ark.Config.Serial.Digit
-		hd.Salt = ark.Config.Serial.Salt
+		hd.Alphabet = ark.Config.Codec.Digit
+		hd.Salt = ark.Config.Codec.Salt
 		if length > 0 {
 			hd.MinLength = length
 		}
@@ -150,10 +150,10 @@ func (module *serialModule) Dehashs(code string, lengths ...int) []int64 {
 	return []int64{}
 }
 
-func (module *serialModule) Serial() int64 {
+func (module *codecModule) Serial() int64 {
 	return module.fastid.NextID()
 }
-func (module *serialModule) Unique(prefixs ...string) string {
+func (module *codecModule) Unique(prefixs ...string) string {
 	id := module.fastid.NextID()
 	if len(prefixs) > 0 {
 		return fmt.Sprintf("%s%s", prefixs[0], module.Enhash(id))
@@ -162,60 +162,60 @@ func (module *serialModule) Unique(prefixs ...string) string {
 	}
 }
 
-func (module *serialModule) Marshal(v interface{}) ([]byte, error) {
+func (module *codecModule) Marshal(v interface{}) ([]byte, error) {
 	return module.jsonCodec.Marshal(v)
 }
-func (module *serialModule) Unmarshal(data []byte, v interface{}) error {
+func (module *codecModule) Unmarshal(data []byte, v interface{}) error {
 	return module.jsonCodec.Unmarshal(data, v)
 }
 
 func Encrypt(text string) string {
-	return ark.Serial.Encrypt(text)
+	return ark.Codec.Encrypt(text)
 }
 func Decrypt(code string) string {
-	return ark.Serial.Decrypt(code)
+	return ark.Codec.Decrypt(code)
 }
 func Encrypts(texts []string) string {
-	return ark.Serial.Encrypts(texts)
+	return ark.Codec.Encrypts(texts)
 }
 func Decrypts(code string) []string {
-	return ark.Serial.Decrypts(code)
+	return ark.Codec.Decrypts(code)
 }
 
 func Enhash(digit int64, lengths ...int) string {
-	return ark.Serial.Enhash(digit, lengths...)
+	return ark.Codec.Enhash(digit, lengths...)
 }
 func Dehash(code string, lengths ...int) int64 {
-	return ark.Serial.Dehash(code, lengths...)
+	return ark.Codec.Dehash(code, lengths...)
 }
 
 //因为要自定义长度，所以动态创建对象
 func Enhashs(digits []int64, lengths ...int) string {
-	return ark.Serial.Enhashs(digits, lengths...)
+	return ark.Codec.Enhashs(digits, lengths...)
 }
 
 //因为要自定义长度，所以动态创建对象
 func Dehashs(code string, lengths ...int) []int64 {
-	return ark.Serial.Dehashs(code, lengths...)
+	return ark.Codec.Dehashs(code, lengths...)
 }
 
 func Serial() int64 {
-	return ark.Serial.Serial()
+	return ark.Codec.Serial()
 }
 func Unique(prefixs ...string) string {
-	return ark.Serial.Unique(prefixs...)
+	return ark.Codec.Unique(prefixs...)
 }
 
 func Marshal(v interface{}) ([]byte, error) {
-	return ark.Serial.jsonCodec.Marshal(v)
+	return ark.Codec.jsonCodec.Marshal(v)
 }
 func Unmarshal(data []byte, v interface{}) error {
-	return ark.Serial.jsonCodec.Unmarshal(data, v)
+	return ark.Codec.jsonCodec.Unmarshal(data, v)
 }
 
 func TextAlphabet() string {
-	return ark.Serial.config.Text
+	return ark.Codec.config.Text
 }
 func DigitAlphabet() string {
-	return ark.Serial.config.Digit
+	return ark.Codec.config.Digit
 }

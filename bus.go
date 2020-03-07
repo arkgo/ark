@@ -151,7 +151,7 @@ func (module *busModule) Publish(name string, value Map, delays ...time.Duration
 	if value == nil {
 		value = Map{}
 	}
-	data, err := ark.Serial.Marshal(value)
+	data, err := ark.Codec.Marshal(value)
 	if err != nil {
 		return err
 	}
@@ -173,7 +173,7 @@ func (module *busModule) Enqueue(name string, value Map, delays ...time.Duration
 	if value == nil {
 		value = Map{}
 	}
-	data, err := ark.Serial.Marshal(value)
+	data, err := ark.Codec.Marshal(value)
 	if err != nil {
 		return err
 	}
@@ -217,7 +217,7 @@ func PublishTo(bus string, name string, value Map, delays ...time.Duration) erro
 	if value == nil {
 		value = Map{}
 	}
-	data, err := ark.Serial.Marshal(value)
+	data, err := ark.Codec.Marshal(value)
 	if err != nil {
 		return err
 	}
@@ -240,7 +240,7 @@ func EnqueueTo(bus string, name string, value Map, delays ...time.Duration) erro
 	if value == nil {
 		value = Map{}
 	}
-	data, err := ark.Serial.Marshal(value)
+	data, err := ark.Codec.Marshal(value)
 	if err != nil {
 		return err
 	}

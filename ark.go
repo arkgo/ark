@@ -12,10 +12,10 @@ type (
 	arkCore struct {
 		Config *arkConfig
 
-		Node   *nodeModule
-		Serial *serialModule
-		Basic  *basicModule
-		Logic  *logicModule
+		Node  *nodeModule
+		Codec *codecModule
+		Basic *basicModule
+		Logic *logicModule
 
 		Logger *loggerModule
 		Mutex  *mutexModule
@@ -40,7 +40,7 @@ type (
 		Basic basicConfig           `toml:"basic"`
 		Lang  map[string]langConfig `toml:"lang"`
 
-		Serial serialConfig `toml:"serial"`
+		Codec codecConfig `toml:"codec"`
 
 		Logger LoggerConfig `toml:"logger"`
 		Mutex  MutexConfig  `toml:"mutex"`

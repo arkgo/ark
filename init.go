@@ -93,35 +93,35 @@ func config() *arkConfig {
 	}
 
 	//序列默认配置
-	if config.Serial.Text == "" {
-		config.Serial.Text = "01234AaBbCcDdEeFfGgHhIiJjKkLlMmNnOoPpQqRrSsTtUuVvWwXxYyZz56789+/"
+	if config.Codec.Text == "" {
+		config.Codec.Text = "01234AaBbCcDdEeFfGgHhIiJjKkLlMmNnOoPpQqRrSsTtUuVvWwXxYyZz56789+/"
 	}
-	if config.Serial.Digit == "" {
+	if config.Codec.Digit == "" {
 		//这个简化去掉了不容易识别的字符
-		config.Serial.Digit = "abcdefghijkmnpqrstuvwxyz123456789ACDEFGHJKLMNPQRSTUVWXYZ"
+		config.Codec.Digit = "abcdefghijkmnpqrstuvwxyz123456789ACDEFGHJKLMNPQRSTUVWXYZ"
 	}
-	if config.Serial.Length <= 0 {
-		config.Serial.Length = 7
+	if config.Codec.Length <= 0 {
+		config.Codec.Length = 7
 	}
 
-	if config.Serial.Start != "" {
-		t, e := time.Parse("2006-01-02", config.Serial.Start)
+	if config.Codec.Start != "" {
+		t, e := time.Parse("2006-01-02", config.Codec.Start)
 		if e == nil {
-			config.Serial.begin = t.UnixNano()
+			config.Codec.begin = t.UnixNano()
 		} else {
-			config.Serial.begin = time.Date(2020, 3, 1, 0, 0, 0, 0, time.Local).UnixNano()
+			config.Codec.begin = time.Date(2020, 3, 1, 0, 0, 0, 0, time.Local).UnixNano()
 		}
 	} else {
-		config.Serial.begin = time.Date(2020, 3, 1, 0, 0, 0, 0, time.Local).UnixNano()
+		config.Codec.begin = time.Date(2020, 3, 1, 0, 0, 0, 0, time.Local).UnixNano()
 	}
-	if config.Serial.TimeBits <= 0 {
-		config.Serial.TimeBits = 43 //41位=毫秒，约69年可用，42=138年，43=276年，44位=552年
+	if config.Codec.TimeBits <= 0 {
+		config.Codec.TimeBits = 43 //41位=毫秒，约69年可用，42=138年，43=276年，44位=552年
 	}
-	if config.Serial.NodeBits <= 0 {
-		config.Serial.NodeBits = 7 //8=256
+	if config.Codec.NodeBits <= 0 {
+		config.Codec.NodeBits = 7 //8=256
 	}
-	if config.Serial.SeqBits <= 0 {
-		config.Serial.SeqBits = 13 //12=4096，13位=819.2万
+	if config.Codec.SeqBits <= 0 {
+		config.Codec.SeqBits = 13 //12=4096，13位=819.2万
 	}
 
 	//默认锁配置
@@ -345,7 +345,7 @@ func build() {
 
 	ark.Config = config()
 	ark.Node = newNode()
-	ark.Serial = newSerial()
+	ark.Codec = newCodec()
 	ark.Basic = newBasic()
 	ark.Logic = newLogic()
 

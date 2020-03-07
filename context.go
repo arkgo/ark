@@ -463,7 +463,7 @@ func (ctx *Http) formHandler() *Res {
 				ctx.Body = RawBody(body)
 
 				m := Map{}
-				err := ark.Serial.Unmarshal(body, &m)
+				err := ark.Codec.Unmarshal(body, &m)
 				if err == nil {
 					//遍历JSON对象
 					for k, v := range m {

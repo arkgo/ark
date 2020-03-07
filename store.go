@@ -574,7 +574,7 @@ func (module *storeModule) Encode(file *storeFile) string {
 	return Encrypt(fmt.Sprintf("%s\t%s\t%s\t%d", file.conn, file.tttt, file.hash, file.size))
 }
 func (module *storeModule) Decode(code string) *storeFile {
-	str := ark.Serial.Decrypt(code)
+	str := ark.Codec.Decrypt(code)
 	if str == "" {
 		return nil
 	}
