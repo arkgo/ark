@@ -19,13 +19,13 @@ type (
 	}
 
 	logicLogic struct {
-		logic *logicModule
-
+		ctx     context
 		Name    string
 		Setting Map
 	}
 
 	Logic struct {
+		ctx     context
 		Name    string
 		Config  Map
 		Setting Map
@@ -73,12 +73,6 @@ func (module *logicModule) Invoke(name string, value Map, setting Map, ctxs ...c
 		return nil, Fail
 	}
 
-	// if ctx == nil {
-	// 	x := newContext()
-	// 	ctx = &x
-	// 	defer ctx.final()
-	// }
-
 	if value == nil {
 		value = Map{}
 	}
@@ -88,6 +82,10 @@ func (module *logicModule) Invoke(name string, value Map, setting Map, ctxs ...c
 	var ctx context
 	if len(ctxs) > 0 {
 		ctx = ctxs[0]
+	}
+	if ctx == nil {
+		ctx = emptyContext()
+		defer ctx.terminal()
 	}
 
 	argn := false
@@ -104,7 +102,7 @@ func (module *logicModule) Invoke(name string, value Map, setting Map, ctxs ...c
 	}
 
 	logic := &Logic{
-		Name: name, Config: config, Setting: setting,
+		ctx: ctx, Name: name, Config: config, Setting: setting,
 		Value: value, Args: args,
 	}
 
@@ -155,12 +153,12 @@ func (module *logicModule) Invoke(name string, value Map, setting Map, ctxs ...c
 func (module *logicModule) Library(name string) *logicLibrary {
 	return &logicLibrary{module, name}
 }
-func (module *logicModule) Logic(name string, settings ...Map) *logicLogic {
+func (module *logicModule) Logic(ctx context, name string, settings ...Map) *logicLogic {
 	setting := make(Map)
 	if len(settings) > 0 {
 		setting = settings[0]
 	}
-	return &logicLogic{module, name, setting}
+	return &logicLogic{ctx, name, setting}
 }
 
 func (lib *logicLibrary) Name() string {
@@ -171,12 +169,21 @@ func (lib *logicLibrary) Method(name string, config Map, overrides ...bool) {
 	lib.module.Method(realName, config, overrides...)
 }
 
+//------------------- Logic 方法 --------------------
+
+func (sv *Logic) Result() *Res {
+	return sv.ctx.Result()
+}
 func (lgc *Logic) Data(bases ...string) DataBase {
-	return nil
+	return lgc.ctx.dataBase(bases...)
 }
 
-func (lgc *Logic) Logic(bases ...string) DataBase {
-	return nil
+func (lgc *Logic) Invoke(name string, args ...Map) Map {
+	return lgc.ctx.Invoke(name, args...)
+}
+
+func (lgc *Logic) Logic(name string, settings ...Map) *logicLogic {
+	return ark.Logic.Logic(lgc.ctx, name, settings...)
 }
 
 //-------------------------------------------------------------------------------------------------------

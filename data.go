@@ -6,14 +6,15 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/arkgo/asset/hashring"
 	. "github.com/arkgo/base"
 )
 
 type (
 	DataConfig struct {
 		Driver  string `toml:"driver"`
-		Cache   string `toml:"cache"`
 		Url     string `toml:"url"`
+		Weight  int    `toml:"weight"`
 		Serial  string `toml:"serial"`
 		Setting Map    `toml:"setting"`
 	}
@@ -93,6 +94,8 @@ type (
 
 		//连接
 		connects map[string]DataConnect
+		weights  map[string]int
+		hashring *hashring.HashRing
 	}
 
 	dataGroup struct {
@@ -120,8 +123,12 @@ func (module *dataModule) connecting(name string, config DataConfig) (DataConnec
 
 //初始化
 func (module *dataModule) initing() {
-
+	weights := make(map[string]int)
 	for name, config := range ark.Config.Data {
+		if config.Weight > 0 {
+			//只有设置了权重的缓存才参与分布
+			weights[name] = config.Weight
+		}
 
 		//连接
 		connect, err := module.connecting(name, config)
@@ -137,6 +144,10 @@ func (module *dataModule) initing() {
 
 		module.connects[name] = connect
 	}
+
+	//hashring分片
+	module.weights = weights
+	module.hashring = hashring.New(weights)
 }
 
 //退出
@@ -693,6 +704,25 @@ func (module *dataModule) parsing(args ...Map) ([]string, []interface{}, []strin
 	return querys, values, orders
 }
 
+func (module *dataModule) Serial(key string, start, step int64, cons ...string) int64 {
+	con := DEFAULT
+	if len(cons) > 0 && cons[0] != "" {
+		con = cons[0]
+	} else if module.hashring != nil {
+		con = module.hashring.Locate(key)
+	}
+
+	if connect, ok := module.connects[con]; ok {
+		db := connect.Base()
+		defer db.Close()
+		return db.Serial(key, start, step)
+	}
+
+	return int64(0)
+}
+
+//------ data group -------
+
 func (module *dataModule) newGroup(base string) *dataGroup {
 	return &dataGroup{module, base}
 }
@@ -709,9 +739,9 @@ func (group *dataGroup) Model(name string, config Map) {
 	group.data.Model(realName, config)
 }
 
-func Data(names ...string) DataBase {
-	return ark.Data.Base(names...)
-}
+// func Data(names ...string) DataBase {
+// 	return ark.Data.Base(names...)
+// }
 func Base(name string) *dataGroup {
 	return ark.Data.newGroup(name)
 }
@@ -736,6 +766,14 @@ func Enums(name string, field string) Map {
 func Enum(name, field, key string) string {
 	return ark.Data.Enum(name, field, key)
 }
-func Parse(args ...Any) (string, []Any, string, error) {
+func ParseSQL(args ...Any) (string, []Any, string, error) {
 	return ark.Data.Parse(args...)
+}
+
+func DataSerial(key string, start, step int64, cons ...string) int64 {
+	num, err := ark.Cache.Serial(key, start, step, cons...)
+	if err != nil {
+		return int64(0)
+	}
+	return num
 }

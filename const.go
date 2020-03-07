@@ -8,6 +8,8 @@ const (
 
 const (
 	UTF8 = "utf8"
+	GB2312 = "gb2312"
+	GBK = "gbk"
 
 	GET    = "GET"
 	POST   = "POST"

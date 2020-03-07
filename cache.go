@@ -280,7 +280,7 @@ func CacheClear(prefix string, cons ...string) error {
 	return ark.Cache.Clear(prefix, cons...)
 }
 
-func Sequence(key string, start, step int64, cons ...string) int64 {
+func CacheSerial(key string, start, step int64, cons ...string) int64 {
 	num, err := ark.Cache.Serial(key, start, step, cons...)
 	if err != nil {
 		return int64(0)

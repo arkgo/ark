@@ -198,6 +198,13 @@ func config() *arkConfig {
 	}
 
 	//数据库，没有默认库
+	for k, v := range config.Data {
+		if v.Weight == 0 {
+			//默认参与分布，否则请设置为-1
+			v.Weight = 1
+		}
+		config.Data[k] = v
+	}
 
 	//会话默认配置
 	if config.Session == nil {
@@ -211,7 +218,8 @@ func config() *arkConfig {
 			if v.Driver == "" {
 				v.Driver = DEFAULT
 			}
-			if v.Weight <= 0 {
+			if v.Weight == 0 {
+				//默认参与分布，否则请设置为-1
 				v.Weight = 1
 			}
 			config.Session[k] = v

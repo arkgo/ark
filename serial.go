@@ -206,16 +206,12 @@ func Unique(prefixs ...string) string {
 	return ark.Serial.Unique(prefixs...)
 }
 
-
-
-func  Marshal(v interface{}) ([]byte, error) {
+func Marshal(v interface{}) ([]byte, error) {
 	return ark.Serial.jsonCodec.Marshal(v)
 }
 func Unmarshal(data []byte, v interface{}) error {
 	return ark.Serial.jsonCodec.Unmarshal(data, v)
 }
-
-
 
 func TextAlphabet() string {
 	return ark.Serial.config.Text

@@ -734,11 +734,11 @@ func (module *httpModule) request(ctx *Http) {
 
 		//静态文件放在这里处理
 		file := ""
-		sitePath := path.Join(ark.Config.Http.Static, ctx.Site, ctx.Uri)
+		sitePath := path.Join(ark.Config.Http.Static, ctx.Site, ctx.Path)
 		if fi, err := os.Stat(sitePath); err == nil && fi.IsDir() == false {
 			file = sitePath
 		} else {
-			sharedPath := path.Join(ark.Config.Http.Static, ark.Config.Http.Shared, ctx.Uri)
+			sharedPath := path.Join(ark.Config.Http.Static, ark.Config.Http.Shared, ctx.Path)
 			if fi, err := os.Stat(sharedPath); err == nil && fi.IsDir() == false {
 				file = sharedPath
 			}
@@ -899,7 +899,7 @@ func (module *httpModule) body(ctx *Http) {
 	}
 
 	//最终响应前做清理工作
-	ctx.final()
+	ctx.terminal()
 }
 func (module *httpModule) bodyDefault(ctx *Http) {
 	ctx.Code = http.StatusNotFound
@@ -1145,7 +1145,7 @@ func (module *httpModule) bodyView(ctx *Http, body httpViewBody) {
 		Root:    ark.Config.View.Root,
 		Shared:  ark.Config.Http.Shared,
 		View:    body.view, Data: viewdata,
-		Site: ctx.Site, Lang: ctx.Lang, Zone: ctx.Zone,
+		Site: ctx.Site, Lang: ctx.Lang(), Zone: ctx.Zone(),
 	})
 
 	if err != nil {
@@ -1177,13 +1177,13 @@ func (module *httpModule) viewHelpers(ctx *Http) Map {
 		},
 
 		"lang": func() string {
-			return ctx.Lang
+			return ctx.Lang()
 		},
 		"zone": func() *time.Location {
-			return ctx.Zone
+			return ctx.Zone()
 		},
 		"timezone": func() string {
-			return ctx.String(ctx.Zone.String())
+			return ctx.String(ctx.Zone().String())
 		},
 		"format": func(format string, args ...interface{}) string {
 			//支持一下显示时间
@@ -1191,13 +1191,13 @@ func (module *httpModule) viewHelpers(ctx *Http) Map {
 				if args[0] == nil {
 					return format
 				} else if ttt, ok := args[0].(time.Time); ok {
-					zoneTime := ttt.In(ctx.Zone)
+					zoneTime := ttt.In(ctx.Zone())
 					return zoneTime.Format(format)
 				} else if ttt, ok := args[0].(int64); ok {
 					//时间戳是大于1971年是, 千万级, 2016年就是10亿级了
 					if ttt >= int64(31507200) && ttt <= int64(31507200000) {
 						ttt := time.Unix(ttt, 0)
-						zoneTime := ttt.In(ctx.Zone)
+						zoneTime := ttt.In(ctx.Zone())
 						sss := zoneTime.Format(format)
 						if strings.HasPrefix(sss, "%") == false || format != sss {
 							return sss

@@ -23,8 +23,12 @@ import (
 
 type (
 	context interface {
-		lang() string
-		zone() *time.Location
+		terminal()
+		Result() *Res
+		Lang(...string) string
+		Zone(...*time.Location) *time.Location
+		dataBase(...string) DataBase
+		Invoke(string, ...Map) Map
 	}
 
 	HttpFunc func(*Http)
@@ -39,9 +43,9 @@ type (
 
 		databases map[string]DataBase
 
-		Charset string
-		Lang    string
-		Zone    *time.Location
+		charset string
+		lang    string
+		zone    *time.Location
 
 		Id         string
 		Name       string
@@ -82,10 +86,19 @@ type (
 	}
 )
 
+//在非context的时候，调用方法，来一个空的context
+//待优化：暂时先这样，省点事，可以单独定义一个context类型，实现接口
+//或者看看后续服务调用这块怎么设计，再优化，
+func emptyContext() *Http {
+	return &Http{
+		index: 0, nexts: make([]HttpFunc, 0), databases: make(map[string]DataBase),
+		charset: UTF8, lang: DEFAULT, zone: time.Local,
+	}
+}
 func httpContext(thread HttpThread) *Http {
 	ctx := &Http{
 		index: 0, nexts: make([]HttpFunc, 0), databases: make(map[string]DataBase),
-		Charset: UTF8, Lang: DEFAULT, Zone: time.Local,
+		charset: UTF8, lang: DEFAULT, zone: time.Local,
 		thread: thread, request: thread.Request(), response: thread.Response(),
 		headers: make(map[string]string), cookies: make(map[string]http.Cookie), sessions: make(Map),
 		Client: make(Map), Params: make(Map), Query: make(Map), Form: make(Map), Upload: make(Map), Data: make(Map),
@@ -134,15 +147,34 @@ func httpContext(thread HttpThread) *Http {
 	return ctx
 }
 
-func (ctx *Http) lang() string {
-	return ctx.Lang
+func (ctx *Http) Charset(charsets ...string) string {
+	if len(charsets) > 0 {
+		charset := charsets[0]
+		if charset != "" {
+			ctx.charset = charset
+		}
+	}
+	return ctx.lang
 }
-func (ctx *Http) zone() *time.Location {
-	return ctx.Zone
+func (ctx *Http) Lang(langs ...string) string {
+	if len(langs) > 0 {
+		lang := langs[0]
+		if lang != "" {
+			//待优化：加上配置中的语言判断，否则不修改
+			ctx.lang = lang
+		}
+	}
+	return ctx.lang
+}
+func (ctx *Http) Zone(zones ...*time.Location) *time.Location {
+	if len(zones) > 0 && zones[0] != nil {
+		ctx.zone = zones[0]
+	}
+	return ctx.zone
 }
 
 //最终的清理工作
-func (ctx *Http) final() {
+func (ctx *Http) terminal() {
 	for _, base := range ctx.databases {
 		base.Close()
 	}
@@ -410,7 +442,7 @@ func (ctx *Http) formHandler() *Res {
 				for lang, config := range ark.Config.Lang {
 					for _, acccc := range config.Accepts {
 						if strings.ToLower(acccc) == strings.ToLower(accept) {
-							ctx.Lang = lang
+							ctx.Lang(lang)
 							break llll
 						}
 					}
@@ -1051,7 +1083,7 @@ func (ctx *Http) Session(key string, vals ...Any) Any {
 
 //获取langString
 func (ctx *Http) String(key string, args ...Any) string {
-	return ark.Basic.String(ctx.Lang, key, args...)
+	return ark.Basic.String(ctx.Lang(), key, args...)
 }
 
 //----------------------- 签名系统 begin ---------------------------------
