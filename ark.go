@@ -52,8 +52,8 @@ type (
 
 		Codec codecConfig `toml:"codec"`
 
-		Logger LoggerConfig `toml:"logger"`
-		Mutex  MutexConfig  `toml:"mutex"`
+		Logger LoggerConfig           `toml:"logger"`
+		Mutex  map[string]MutexConfig `toml:"mutex"`
 
 		Gateway GatewayConfig `toml:"gateway"`
 

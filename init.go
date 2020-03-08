@@ -125,8 +125,23 @@ func config() *arkConfig {
 	}
 
 	//默认锁配置
-	if config.Mutex.Driver == "" {
-		config.Mutex.Driver = DEFAULT
+	if config.Mutex == nil {
+		config.Mutex = map[string]MutexConfig{
+			DEFAULT: {
+				Driver:  DEFAULT, Weight: 1, Expiry:  "2s",
+			},
+		}
+	} else {
+		for k, v := range config.Mutex {
+			if v.Driver == "" {
+				v.Driver = DEFAULT
+			}
+			if v.Weight == 0 {
+				//默认参与分布，否则请设置为-1
+				v.Weight = 1
+			}
+			config.Mutex[k] = v
+		}
 	}
 	//日志默认配置
 	if config.Logger.Driver == "" {

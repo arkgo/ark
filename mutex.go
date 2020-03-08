@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/arkgo/asset/hashring"
 	. "github.com/arkgo/base"
 )
 
@@ -13,6 +14,7 @@ type (
 	// MutexConfig 是互斥配置类
 	MutexConfig struct {
 		Driver  string `toml:"driver"`
+		Weight  int `toml:"weight"`
 		Prefix  string `toml:"prefix"`
 		Expiry  string `toml:"expiry"`
 		Setting Map    `toml:"setting"`
@@ -43,6 +45,8 @@ type (
 		drivers map[string]MutexDriver
 
 		connects map[string]MutexConnect
+		weights map[string]int
+		hashring *hashring.HashRing
 	}
 )
 
@@ -50,8 +54,6 @@ func newMutex() *mutexModule {
 	return &mutexModule{
 		drivers:  make(map[string]MutexDriver),
 		connects: make(map[string]MutexConnect),
-		weights  map[string]int
-		hashring *hashring.HashRing
 	}
 }
 
@@ -130,7 +132,7 @@ func (module *mutexModule) Lock(key string, expiry time.Duration, cons ...string
 		con = module.hashring.Locate(key)
 	}
 
-	expiries := []time.Duration
+	expiries := make([]time.Duration, 0)
 	if expiry > 0 {
 		expiries = append(expiries, expiry)
 	}
