@@ -27,8 +27,9 @@ type (
 		Workload int64
 	}
 
-	// BusHandler 总线回调
-	BusHandler func(string, []byte) error
+	// 总线回调
+	EventHandler func(string, []byte) error
+	QueueHandler func(string, []byte) error
 
 	// BusConnect 总线连接
 	BusConnect interface {
@@ -36,8 +37,10 @@ type (
 		Health() (BusHealth, error)
 		Close() error
 
-		Event(string, BusHandler) error
-		Queue(string, int, BusHandler) error
+		Accept(EventHandler, QueueHandler) error
+
+		Event(string) error
+		Queue(string, int) error
 
 		Start() error
 
@@ -46,8 +49,12 @@ type (
 	}
 
 	busModule struct {
-		mutex    sync.Mutex
-		drivers  map[string]BusDriver
+		mutex        sync.Mutex
+		drivers      map[string]BusDriver
+		events       map[string]Map
+		queues       map[string]Map
+		queueThreads map[string]int
+
 		connects map[string]BusConnect
 		hashring *hashring.HashRing
 	}
@@ -55,12 +62,16 @@ type (
 
 func newBus() *busModule {
 	return &busModule{
-		drivers:  make(map[string]BusDriver, 0),
+		drivers:      make(map[string]BusDriver, 0),
+		events:       make(map[string]Map),
+		queues:       make(map[string]Map),
+		queueThreads: make(map[string]int),
+
 		connects: make(map[string]BusConnect, 0),
 	}
 }
 
-//注册日志驱动
+//注册总线驱动
 func (module *busModule) Driver(name string, driver BusDriver, overrides ...bool) {
 	module.mutex.Lock()
 	defer module.mutex.Unlock()
@@ -83,6 +94,60 @@ func (module *busModule) Driver(name string, driver BusDriver, overrides ...bool
 	}
 }
 
+func (module *busModule) Event(name string, config Map, overrides ...bool) {
+	module.mutex.Lock()
+	defer module.mutex.Unlock()
+
+	if config == nil {
+		panic("[总线]事伯不可为空")
+	}
+
+	override := true
+	if len(overrides) > 0 {
+		override = overrides[0]
+	}
+
+	if override {
+		module.events[name] = config
+	} else {
+		if module.events[name] == nil {
+			module.events[name] = config
+		}
+	}
+}
+
+func (module *busModule) Queue(name string, config Map, overrides ...bool) {
+	module.mutex.Lock()
+	defer module.mutex.Unlock()
+
+	if config == nil {
+		panic("[总线]事件不可为空")
+	}
+
+	override := true
+	if len(overrides) > 0 {
+		override = overrides[0]
+	}
+
+	if override {
+		module.queue(name, config)
+	} else {
+		if module.queues[name] == nil {
+			module.queue(name, config)
+		}
+	}
+}
+func (module *busModule) queue(name string, config Map) {
+	module.queues[name] = config
+	thread := 1
+	if vv, ok := config["thread"].(int); ok {
+		thread = vv
+	}
+	if vv, ok := config["threadS"].(int); ok {
+		thread = vv
+	}
+	module.queueThreads[name] = thread
+}
 func (module *busModule) connecting(name string, config BusConfig) (BusConnect, error) {
 	if driver, ok := module.drivers[config.Driver]; ok {
 		return driver.Connect(name, config)
@@ -102,6 +167,11 @@ func (module *busModule) initing() {
 			panic("[总线]打开失败：" + err.Error())
 		}
 
+		err = connect.Accept(module.eventing, module.queueing)
+		if err != nil {
+			panic("[总线]注册失败：" + err.Error())
+		}
+
 		//权重大于0，才表示是本系统自动要使用的消息服务
 		//如果小于等于0，则表示是外接的消息系统，就不订阅
 		if config.Weight > 0 {
@@ -109,23 +179,17 @@ func (module *busModule) initing() {
 
 			//待处理，注册订阅和队列
 
-			// connect.Event(busBroadcast, module.broadcast)
-			// connect.Event(busMulticast, module.multicast)
-			// connect.Event(busUnicast, module.unicast)
-			// connect.Event(busDegrade, module.degrade)
+			for name, _ := range module.events {
+				if err := connect.Event(name); err != nil {
+					panic("[总线]注册事件失败：" + err.Error())
+				}
+			}
 
-			// connect.Event(busEvent, module.event)
-
-			//200221更新，不再注册所有队列
-			//队列全部走liner里去监听，队列全部单独注册和发送
-			//connect.Queue(busQueue, 0, module.queue)	//此为通用的队列接收
-
-			//单独处理指定了liner的队列
-			// for _, liner := range liners {
-			// 	if line, ok := liner.data.(int); ok {
-			// 		connect.Queue(liner.name, line, module.queue)
-			// 	}
-			// }
+			for name, thread := range module.queueThreads {
+				if err := connect.Queue(name, thread); err != nil {
+					panic("[总线]注册队列失败：" + err.Error())
+				}
+			}
 		}
 
 		err = connect.Start()
@@ -143,6 +207,36 @@ func (module *busModule) exiting() {
 	for _, connect := range module.connects {
 		connect.Close()
 	}
+}
+
+//收到事件和队列
+func (module *busModule) eventing(name string, data []byte) error {
+	value := Map{}
+	err := ark.Codec.Unmarshal(data, &value)
+	if err == nil {
+		ark.Service.Invoke(nil, name, value)
+	}
+
+	return nil
+}
+func (module *busModule) queueing(name string, data []byte) error {
+	// msg := BusMessage{}
+	// err := json.Unmarshal(data, &msg)
+	// if err == nil {
+	// 	_, res := mService.Execute(msg.Name, msg.Value)
+	// 	if res == Retry {
+	// 		//如果是结果是重试，重新加入队列
+	// 		Enqueue(msg.Name, msg.Value)
+	// 	}
+	// }
+
+	value := Map{}
+	err := ark.Codec.Unmarshal(data, &value)
+	if err == nil {
+		ark.Service.Invoke(nil, name, value)
+	}
+
+	return nil
 }
 
 // Publish 发起事件
@@ -206,6 +300,16 @@ func (module *busModule) EnqueueTo(bus string, name string, data []byte, delays 
 	return errors.New("列队失败")
 }
 
+//--------------------------------------------
+
+// Event 注册事件
+func Event(name string, config Map, overrides ...bool) {
+	ark.Bus.Event(name, config, overrides...)
+}
+func Queue(name string, config Map, overrides ...bool) {
+	ark.Bus.Queue(name, config, overrides...)
+}
+
 // Publish 是发起事件
 func Publish(name string, value Map, delays ...time.Duration) error {
 	return ark.Bus.Publish(name, value, delays...)
@@ -253,6 +357,6 @@ func EnqueueDataTo(bus string, name string, data []byte, delays ...time.Duration
 }
 
 // Trigger 触发器，待处理
-func Trigger(name string, values ...Map) error {
-	return nil
-}
+// func Trigger(name string, values ...Map) error {
+// 	return nil
+// }

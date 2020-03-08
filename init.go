@@ -347,10 +347,13 @@ func build() {
 	ark.Node = newNode()
 	ark.Codec = newCodec()
 	ark.Basic = newBasic()
-	ark.Logic = newLogic()
 
 	ark.Logger = newLogger()
 	ark.Mutex = newMutex()
+
+	ark.Gateway = newGateway()
+	ark.Service = newService()
+
 	ark.Bus = newBus()
 	ark.Store = newStore()
 	ark.Cache = newCache()

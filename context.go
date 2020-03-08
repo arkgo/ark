@@ -28,7 +28,7 @@ type (
 		Lang(...string) string
 		Zone(...*time.Location) *time.Location
 		dataBase(...string) DataBase
-		Invoke(string, ...Map) Map
+		invoke(string, Map, ...Map) Map
 	}
 
 	HttpFunc func(*Http)
@@ -1129,18 +1129,21 @@ func (ctx *Http) Signer(key string) string {
 //----------------------- 签名系统 end ---------------------------------
 
 // ------- 服务调用 -----------------
-func (ctx *Http) Invoke(name string, values ...Map) Map {
+func (ctx *Http) invoke(name string, value Map, settings ...Map) Map {
 	ctx.lastError = nil
 
+	result, res := ark.Service.Invoke(ctx, name, value, settings...)
+	ctx.lastError = res
+
+	return result
+}
+
+func (ctx *Http) Invoke(name string, values ...Map) Map {
 	value := Map{}
 	if len(values) > 0 {
 		value = values[0]
 	}
-
-	result, res := ark.Logic.Invoke(name, value, Map{}, ctx)
-	ctx.lastError = res
-
-	return result
+	return ctx.invoke(name, value, nil)
 }
 
 //------- 服务调用 -----------------

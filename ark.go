@@ -15,7 +15,9 @@ type (
 		Node  *nodeModule
 		Codec *codecModule
 		Basic *basicModule
-		Logic *logicModule
+
+		Gateway *gatewayModule
+		Service *serviceModule
 
 		Logger *loggerModule
 		Mutex  *mutexModule
@@ -44,6 +46,8 @@ type (
 
 		Logger LoggerConfig `toml:"logger"`
 		Mutex  MutexConfig  `toml:"mutex"`
+
+		Gateway GatewayConfig `toml:"gateway"`
 
 		Bus   map[string]BusConfig   `toml:"bus"`
 		File  FileConfig             `toml:"file"`

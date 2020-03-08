@@ -38,6 +38,13 @@ func Driver(name string, driver Any) {
 	}
 }
 
+// func Register(name string, data Any, overrides ...bool) {
+// 	switch config := data.(type) {
+// 	case eventRegister:
+// 		ark.Bus.Event(name, config, overrides...)
+// 	}
+// }
+
 func Precision(f float64, prec int, rounds ...bool) float64 {
 	round := false
 	if len(rounds) > 0 {
