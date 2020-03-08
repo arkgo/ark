@@ -3,6 +3,7 @@ package ark
 import (
 	"fmt"
 	"sync"
+	"time"
 
 	. "github.com/arkgo/base"
 )
@@ -191,6 +192,17 @@ func (lgc *Service) Invoke(name string, args ...Map) Map {
 
 func (lgc *Service) Logic(name string, settings ...Map) *serviceLogic {
 	return ark.Service.Logic(lgc.ctx, name, settings...)
+}
+
+//语法糖
+func (lgc *Service) Locked(key string, expiry time.Duration, cons ...string) bool {
+	return ark.Mutex.Lock(key, expiry, cons...) != nil
+}
+func (lgc *Service) Lock(key string, expiry time.Duration, cons ...string) error {
+	return ark.Mutex.Lock(key, expiry, cons...)
+}
+func (lgc *Service) Unlock(key string, cons ...string) error {
+	return ark.Mutex.Unlock(key, cons...)
 }
 
 //------- logic 方法 -------------

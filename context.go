@@ -1535,3 +1535,14 @@ func (ctx *Http) Ip() string {
 
 	return ip
 }
+
+//语法糖
+func (ctx *Http) Locked(key string, expiry time.Duration, cons ...string) bool {
+	return ark.Mutex.Lock(key, expiry, cons...) != nil
+}
+func (ctx *Http) Lock(key string, expiry time.Duration, cons ...string) error {
+	return ark.Mutex.Lock(key, expiry, cons...)
+}
+func (ctx *Http) Unlock(key string, cons ...string) error {
+	return ark.Mutex.Unlock(key, cons...)
+}

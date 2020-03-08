@@ -9,6 +9,14 @@ import (
 )
 
 type (
+
+	//modules
+	//node, codec, basic
+	//gateway, service, website
+	//logger, mutex
+	//bus, file, store, cache, data
+	//session, http, view
+
 	arkCore struct {
 		Config *arkConfig
 

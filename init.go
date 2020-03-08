@@ -146,6 +146,9 @@ func config() *arkConfig {
 			if v.Driver == "" {
 				v.Driver = DEFAULT
 			}
+			if v.Weight == 0 {
+				v.Weight = 1
+			}
 			config.Bus[k] = v
 		}
 	}

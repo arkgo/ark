@@ -20,7 +20,7 @@ type (
 
 	// MutexDriver 互斥驱动
 	MutexDriver interface {
-		Connect(config MutexConfig) (MutexConnect, error)
+		Connect(name string, config MutexConfig) (MutexConnect, error)
 	}
 	// MutexConnect 互斥连接
 	MutexConnect interface {
@@ -42,13 +42,16 @@ type (
 		mutex   sync.Mutex
 		drivers map[string]MutexDriver
 
-		connect MutexConnect
+		connects map[string]MutexConnect
 	}
 )
 
 func newMutex() *mutexModule {
 	return &mutexModule{
-		drivers: map[string]MutexDriver{},
+		drivers:  make(map[string]MutexDriver),
+		connects: make(map[string]MutexConnect),
+		weights  map[string]int
+		hashring *hashring.HashRing
 	}
 }
 
@@ -75,55 +78,91 @@ func (module *mutexModule) Driver(name string, driver MutexDriver, overrides ...
 	}
 }
 
-func (module *mutexModule) connecting(config MutexConfig) (MutexConnect, error) {
+func (module *mutexModule) connecting(name string, config MutexConfig) (MutexConnect, error) {
 	if driver, ok := module.drivers[config.Driver]; ok {
-		return driver.Connect(config)
+		return driver.Connect(name, config)
 	}
 	panic("[互斥]不支持的驱动" + config.Driver)
 }
 
 //初始化
 func (module *mutexModule) initing() {
-	connect, err := module.connecting(ark.Config.Mutex)
-	if err != nil {
-		panic("[互斥]连接失败：" + err.Error())
+
+	weights := make(map[string]int)
+	for name, config := range ark.Config.Mutex {
+		if config.Weight > 0 {
+			//只有设置了权重的才参与分布
+			weights[name] = config.Weight
+		}
+
+		connect, err := module.connecting(name, config)
+		if err != nil {
+			panic("[互斥]连接失败：" + err.Error())
+		}
+
+		//打开连接
+		err = connect.Open()
+		if err != nil {
+			panic("[互斥]打开失败：" + err.Error())
+		}
+
+		//保存连接
+		module.connects[name] = connect
 	}
 
-	//打开连接
-	err = connect.Open()
-	if err != nil {
-		panic("[互斥]打开失败：" + err.Error())
-	}
-
-	//保存连接
-	module.connect = connect
+	//hashring分片
+	module.weights = weights
+	module.hashring = hashring.New(weights)
 }
 
 //退出
 func (module *mutexModule) exiting() {
-	if module.connect != nil {
-		module.connect.Close()
+	for _, connect := range module.connects {
+		connect.Close()
 	}
 }
 
-func (module *mutexModule) Lock(key string, expiries ...time.Duration) error {
-	if module.connect != nil {
-		return module.Lock(key, expiries...)
+func (module *mutexModule) Lock(key string, expiry time.Duration, cons ...string) error {
+	con := DEFAULT
+	if len(cons) > 0 && cons[0] != "" {
+		con = cons[0]
+	} else if module.hashring != nil {
+		con = module.hashring.Locate(key)
 	}
+
+	expiries := []time.Duration
+	if expiry > 0 {
+		expiries = append(expiries, expiry)
+	}
+
+	if connect, ok := module.connects[con]; ok {
+		return connect.Lock(key, expiries...)
+	}
+	
 	return errors.New("无效互斥连接")
 }
-func (module *mutexModule) Unlock(key string) error {
-	if module.connect != nil {
-		return module.Unlock(key)
+func (module *mutexModule) Unlock(key string, cons ...string) error {
+	con := DEFAULT
+	if len(cons) > 0 && cons[0] != "" {
+		con = cons[0]
+	} else if module.hashring != nil {
+		con = module.hashring.Locate(key)
 	}
+
+	if connect, ok := module.connects[con]; ok {
+		return connect.Unlock(key)
+	}
+	
 	return errors.New("无效互斥连接")
 }
 
 //语法糖
-
-func Lock(key string, expiries ...time.Duration) error {
-	return ark.Mutex.Lock(key, expiries...)
+func Locked(key string, expiry time.Duration, cons ...string) bool {
+	return ark.Mutex.Lock(key, expiry, cons...) != nil
 }
-func Unlock(key string) error {
-	return ark.Mutex.Unlock(key)
+func Lock(key string, expiry time.Duration, cons ...string) error {
+	return ark.Mutex.Lock(key, expiry, cons...)
+}
+func Unlock(key string, cons ...string) error {
+	return ark.Mutex.Unlock(key, cons...)
 }
