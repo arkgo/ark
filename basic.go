@@ -303,6 +303,7 @@ func (module *basicModule) Type(name string, config Map, overrides ...bool) {
 	}
 
 }
+
 func (module *basicModule) Types() map[string]Map {
 	types := map[string]Map{}
 	for k, v := range module.types {
@@ -903,15 +904,16 @@ func Results(langs ...string) map[int]string {
 }
 
 //---------------------- mapping --------------------------
-func Type(name string, config Map, overrides ...bool) {
-	ark.Basic.Type(name, config, overrides...)
-}
+// func Type(name string, config Map, overrides ...bool) {
+// 	ark.Basic.Type(name, config, overrides...)
+// }
 func Types() map[string]Map {
 	return ark.Basic.Types()
 }
-func Crypto(name string, config Map, overrides ...bool) {
-	ark.Basic.Crypto(name, config, overrides...)
-}
+
+// func Crypto(name string, config Map, overrides ...bool) {
+// 	ark.Basic.Crypto(name, config, overrides...)
+// }
 func Cryptos() map[string]Map {
 	return ark.Basic.Cryptos()
 }

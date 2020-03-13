@@ -59,3 +59,15 @@ func Precision(f float64, prec int, rounds ...bool) float64 {
 	//默认
 	return math.Trunc((f)*pow10_n) / pow10_n
 }
+
+func Register(val Any, vals ...Any) string {
+	key := ""
+	if vv, ok := val.(string); ok {
+		key = vv
+	}
+	if len(vals) > 0 {
+		val = vals[0]
+	}
+
+	return key
+}
