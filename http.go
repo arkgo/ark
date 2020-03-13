@@ -571,9 +571,11 @@ func (module *httpModule) RequestFilter(name string, config RequestFilter, overr
 	for key, val := range filters {
 		if override {
 			module.requestFilters[key] = val
+			module.requestNames = append(module.requestNames, key)
 		} else {
 			if _, ok := module.requestFilters[key]; ok == false {
 				module.requestFilters[key] = val
+				module.requestNames = append(module.requestNames, key)
 			}
 		}
 	}
@@ -612,9 +614,11 @@ func (module *httpModule) ExecuteFilter(name string, config ExecuteFilter, overr
 	for key, val := range filters {
 		if override {
 			module.executeFilters[key] = val
+			module.executeNames = append(module.executeNames, key)
 		} else {
 			if _, ok := module.executeFilters[key]; ok == false {
 				module.executeFilters[key] = val
+				module.executeNames = append(module.executeNames, key)
 			}
 		}
 	}
@@ -653,9 +657,11 @@ func (module *httpModule) ResponseFilter(name string, config ResponseFilter, ove
 	for key, val := range filters {
 		if override {
 			module.responseFilters[key] = val
+			module.responseNames = append(module.responseNames, key)
 		} else {
 			if _, ok := module.responseFilters[key]; ok == false {
 				module.responseFilters[key] = val
+				module.responseNames = append(module.responseNames, key)
 			}
 		}
 	}
@@ -738,9 +744,11 @@ func (module *httpModule) FoundHandler(name string, config FoundHandler, overrid
 	for key, val := range handlers {
 		if override {
 			module.foundHandlers[key] = val
+			module.foundNames = append(module.foundNames, key)
 		} else {
 			if _, ok := module.foundHandlers[key]; ok == false {
 				module.foundHandlers[key] = val
+				module.foundNames = append(module.foundNames, key)
 			}
 		}
 	}
@@ -779,9 +787,11 @@ func (module *httpModule) ErrorHandler(name string, config ErrorHandler, overrid
 	for key, val := range handlers {
 		if override {
 			module.errorHandlers[key] = val
+			module.errorNames = append(module.errorNames, key)
 		} else {
 			if _, ok := module.errorHandlers[key]; ok == false {
 				module.errorHandlers[key] = val
+				module.errorNames = append(module.errorNames, key)
 			}
 		}
 	}
@@ -820,9 +830,11 @@ func (module *httpModule) FailedHandler(name string, config FailedHandler, overr
 	for key, val := range handlers {
 		if override {
 			module.failedHandlers[key] = val
+			module.failedNames = append(module.failedNames, key)
 		} else {
 			if _, ok := module.failedHandlers[key]; ok == false {
 				module.failedHandlers[key] = val
+				module.failedNames = append(module.failedNames, key)
 			}
 		}
 	}
@@ -861,9 +873,11 @@ func (module *httpModule) DeniedHandler(name string, config DeniedHandler, overr
 	for key, val := range handlers {
 		if override {
 			module.deniedHandlers[key] = val
+			module.deniedNames = append(module.deniedNames, key)
 		} else {
 			if _, ok := module.deniedHandlers[key]; ok == false {
 				module.deniedHandlers[key] = val
+				module.deniedNames = append(module.deniedNames, key)
 			}
 		}
 	}
@@ -914,8 +928,6 @@ func (module *httpModule) serve(thread HttpThread) {
 	if config, ok := module.routers[ctx.Name]; ok {
 		ctx.Config = config
 	}
-
-	//Debug("ccc", ctx.Name, ctx.Config)
 
 	//request拦截器，加入调用列表
 	if funcs, ok := module.requestActions[ctx.Site]; ok {
