@@ -29,47 +29,98 @@ type (
 	basicModule struct {
 		mutex sync.Mutex
 
-		states   map[string]int
-		mimes    map[string][]string
-		regulars map[string][]string
+		states   map[string]State
 		langs    map[string]string
-		types    map[string]Map
-		cryptos  map[string]Map
+		mimes    map[string]Mime
+		regulars map[string]Regular
+		types    map[string]Type
+		cryptos  map[string]Crypto
+	}
+
+	State struct {
+		Name   string   `json:"name"`
+		Desc   string   `json:"desc"`
+		Alias  []string `json:"alias"`
+		Code   int      `json:"code"`
+		String string   `json:"string"`
+	}
+	Mime struct {
+		Name  string   `json:"name"`
+		Desc  string   `json:"desc"`
+		Alias []string `json:"alias"`
+		Type  string   `json:"-"`
+		Types []string `json:"types"`
+	}
+	Regular struct {
+		Name        string   `json:"name"`
+		Desc        string   `json:"desc"`
+		Alias       []string `json:"alias"`
+		Expression  string   `json:"-"`
+		Expressions []string `json:"expressions"`
+	}
+
+	TypeValidFunc func(Any, Map) bool
+	TypeValueFunc func(Any, Map) Any
+	Type          struct {
+		Name    string        `json:"name"`
+		Desc    string        `json:"desc"`
+		Alias   []string      `json:"alias"`
+		Setting Map           `json:"setting"`
+		Valid   TypeValidFunc `json:"-"`
+		Value   TypeValueFunc `json:"-"`
+	}
+
+	CryptoEncodeFunc func(Any, Map) Any
+	CryptoDecodeFunc func(Any, Map) Any
+	Crypto           struct {
+		Name    string           `json:"name"`
+		Desc    string           `json:"desc"`
+		Alias   []string         `json:"alias"`
+		Setting Map              `json:"setting"`
+		Encode  CryptoEncodeFunc `json:"-"`
+		Decode  CryptoDecodeFunc `json:"-"`
 	}
 )
 
 func newBasic() *basicModule {
 
 	basic := &basicModule{
-		states:   make(map[string]int, 0),
-		mimes:    make(map[string][]string, 0),
-		regulars: make(map[string][]string, 0),
+		states:   make(map[string]State, 0),
+		mimes:    make(map[string]Mime, 0),
+		regulars: make(map[string]Regular, 0),
 		langs:    make(map[string]string, 0),
-		types:    make(map[string]Map, 0),
-		cryptos:  make(map[string]Map, 0),
+		types:    make(map[string]Type, 0),
+		cryptos:  make(map[string]Crypto, 0),
 	}
 
 	//这里加载语言文件，和其它定义
 
 	//加载状态定义
-	var states map[string]int
-	err := loading(path.Join(ark.Config.Basic.State), states)
-	if err == nil {
-		basic.State(states)
-	}
+	//状态定义不需要动态处理，写死在代码里就完事了
+	// var states map[string]int
+	// err := loading(path.Join(ark.Config.Basic.State), states)
+	// if err == nil {
+	// 	for key, val := range states {
+	// 		basic.State(key, State{Code: val})
+	// 	}
+	// }
 
 	//加载mime类型
 	var mimes map[string][]string
-	err = loading(path.Join(ark.Config.Basic.Mime), mimes)
+	err := loading(path.Join(ark.Config.Basic.Mime), mimes)
 	if err == nil {
-		basic.Mime(mimes)
+		for key, vals := range mimes {
+			basic.Mime(key, Mime{Types: vals})
+		}
 	}
 
 	//加载正则表达式
 	var regulars map[string][]string
 	err = loading(path.Join(ark.Config.Basic.Regular), regulars)
 	if err == nil {
-		basic.Regular(regulars)
+		for key, vals := range regulars {
+			basic.Regular(key, Regular{Expressions: vals})
+		}
 	}
 
 	//加载语言包
@@ -89,28 +140,58 @@ func newBasic() *basicModule {
 	return basic
 }
 
-func (module *basicModule) State(config map[string]int, overrides ...bool) {
-	module.mutex.Lock()
-	defer module.mutex.Unlock()
+// func (module *basicModule) State(config map[string]int, overrides ...bool) {
+// 	module.mutex.Lock()
+// 	defer module.mutex.Unlock()
 
+// 	override := true
+// 	if len(overrides) > 0 {
+// 		override = overrides[0]
+// 	}
+
+// 	for k, v := range config {
+// 		if override {
+// 			module.states[k] = v
+// 		} else {
+// 			if _, ok := module.states[k]; ok == false {
+// 				module.states[k] = v
+// 			}
+// 		}
+// 	}
+// }
+
+func (module *basicModule) State(name string, config State, overrides ...bool) {
 	override := true
 	if len(overrides) > 0 {
 		override = overrides[0]
 	}
 
-	for k, v := range config {
+	alias := make([]string, 0)
+	if name != "" {
+		alias = append(alias, name)
+	}
+	if config.Alias != nil {
+		alias = append(alias, config.Alias...)
+	}
+
+	for _, key := range alias {
 		if override {
-			module.states[k] = v
+			module.states[key] = config
 		} else {
-			if _, ok := module.states[k]; ok == false {
-				module.states[k] = v
+			if _, ok := module.states[key]; ok == false {
+				module.states[key] = config
 			}
+		}
+		//自动注册默认的语言字串
+		if config.String != "" {
+			module.Lang(DEFAULT, map[string]string{key: config.String})
 		}
 	}
 }
+
 func (module *basicModule) Code(state string, defs ...int) int {
-	if vv, ok := module.states[state]; ok {
-		return vv
+	if state, ok := module.states[state]; ok {
+		return state.Code
 	}
 	if len(defs) > 0 {
 		return defs[0]
@@ -126,38 +207,70 @@ func (module *basicModule) Results(langs ...string) map[int]string {
 
 	codes := map[int]string{}
 	for key, state := range module.states {
-		codes[state] = module.String(lang, key)
+		codes[state.Code] = module.String(lang, key)
 	}
 	return codes
 }
 
-func (module *basicModule) Mime(config map[string][]string, overrides ...bool) {
-	module.mutex.Lock()
-	defer module.mutex.Unlock()
-
+func (module *basicModule) Mime(name string, config Mime, overrides ...bool) {
 	override := true
 	if len(overrides) > 0 {
 		override = overrides[0]
 	}
 
-	for k, v := range config {
+	alias := make([]string, 0)
+	if name != "" {
+		alias = append(alias, name)
+	}
+	if config.Alias != nil {
+		alias = append(alias, config.Alias...)
+	}
+
+	if config.Types == nil {
+		config.Types = []string{}
+	}
+	if config.Type != "" {
+		config.Types = append(config.Types, config.Type)
+	}
+
+	for _, key := range alias {
 		if override {
-			module.mimes[k] = v
+			module.mimes[key] = config
 		} else {
-			if _, ok := module.mimes[k]; ok == false {
-				module.mimes[k] = v
+			if _, ok := module.mimes[key]; ok == false {
+				module.mimes[key] = config
 			}
 		}
 	}
 }
+
+// func (module *basicModule) Mime(config map[string][]string, overrides ...bool) {
+// 	module.mutex.Lock()
+// 	defer module.mutex.Unlock()
+
+// 	override := true
+// 	if len(overrides) > 0 {
+// 		override = overrides[0]
+// 	}
+
+// 	for k, v := range config {
+// 		if override {
+// 			module.mimes[k] = v
+// 		} else {
+// 			if _, ok := module.mimes[k]; ok == false {
+// 				module.mimes[k] = v
+// 			}
+// 		}
+// 	}
+// }
 
 //按mime拿类型（扩展名）
 func (module *basicModule) Extension(mime string, defs ...string) string {
 	if strings.Contains(mime, "/") == false {
 		return mime
 	}
-	for ext, vs := range module.mimes {
-		for _, v := range vs {
+	for ext, config := range module.mimes {
+		for _, v := range config.Types {
 			if strings.ToLower(v) == strings.ToLower(mime) {
 				return ext
 			}
@@ -180,11 +293,11 @@ func (module *basicModule) Mimetype(ext string, defs ...string) string {
 		ext = strings.TrimPrefix(ext, ".")
 	}
 
-	if vs, ok := module.mimes[ext]; ok && len(vs) > 0 {
-		return vs[0]
+	if vs, ok := module.mimes[ext]; ok && len(vs.Types) > 0 {
+		return vs.Types[0]
 	}
-	if vs, ok := module.mimes["*"]; ok && len(vs) > 0 {
-		return vs[0]
+	if vs, ok := module.mimes["*"]; ok && len(vs.Types) > 0 {
+		return vs.Types[0]
 	}
 	if len(defs) > 0 {
 		return defs[0]
@@ -193,34 +306,66 @@ func (module *basicModule) Mimetype(ext string, defs ...string) string {
 	return "application/octet-stream"
 }
 
-func (module *basicModule) Regular(config map[string][]string, overrides ...bool) {
-	module.mutex.Lock()
-	defer module.mutex.Unlock()
+// func (module *basicModule) Regular(config map[string][]string, overrides ...bool) {
+// 	module.mutex.Lock()
+// 	defer module.mutex.Unlock()
 
+// 	override := true
+// 	if len(overrides) > 0 {
+// 		override = overrides[0]
+// 	}
+
+// 	for k, v := range config {
+// 		if override {
+// 			module.regulars[k] = v
+// 		} else {
+// 			if _, ok := module.regulars[k]; ok == false {
+// 				module.regulars[k] = v
+// 			}
+// 		}
+// 	}
+// }
+
+func (module *basicModule) Regular(name string, config Regular, overrides ...bool) {
 	override := true
 	if len(overrides) > 0 {
 		override = overrides[0]
 	}
 
-	for k, v := range config {
+	alias := make([]string, 0)
+	if name != "" {
+		alias = append(alias, name)
+	}
+	if config.Alias != nil {
+		alias = append(alias, config.Alias...)
+	}
+
+	if config.Expressions == nil {
+		config.Expressions = []string{}
+	}
+	if config.Expression != "" {
+		config.Expressions = append(config.Expressions, config.Expression)
+	}
+
+	for _, key := range alias {
 		if override {
-			module.regulars[k] = v
+			module.regulars[key] = config
 		} else {
-			if _, ok := module.regulars[k]; ok == false {
-				module.regulars[k] = v
+			if _, ok := module.regulars[key]; ok == false {
+				module.regulars[key] = config
 			}
 		}
 	}
 }
-func (module *basicModule) Express(name string, defs ...string) []string {
-	if vvs, ok := module.regulars[name]; ok {
-		return vvs
+func (module *basicModule) Expressions(name string, defs ...string) []string {
+	if config, ok := module.regulars[name]; ok {
+		return config.Expressions
 	}
 	return defs
 }
 
 func (module *basicModule) Match(value, regular string) bool {
-	matchs := module.Express(regular)
+	matchs := module.Expressions(regular)
 	for _, v := range matchs {
 		regx := regexp.MustCompile(v)
 		if regx.MatchString(value) {
@@ -276,23 +421,21 @@ func (module *basicModule) String(lang, name string, args ...Any) string {
 	return langStr
 }
 
-func (module *basicModule) Type(name string, config Map, overrides ...bool) {
-
-	types := []string{}
-	if vv, ok := config["type"].(string); ok && vv != "" {
-		types = append(types, vv)
-	} else if vvs, ok := config["types"].([]string); ok {
-		types = append(types, vvs...)
-	} else {
-		types = append(types, name)
-	}
-
+func (module *basicModule) Type(name string, config Type, overrides ...bool) {
 	override := true
 	if len(overrides) > 0 {
 		override = overrides[0]
 	}
 
-	for _, key := range types {
+	alias := make([]string, 0)
+	if name != "" {
+		alias = append(alias, name)
+	}
+	if config.Alias != nil {
+		alias = append(alias, config.Alias...)
+	}
+
+	for _, key := range alias {
 		if override {
 			module.types[key] = config
 		} else {
@@ -304,37 +447,36 @@ func (module *basicModule) Type(name string, config Map, overrides ...bool) {
 
 }
 
-func (module *basicModule) Types() map[string]Map {
-	types := map[string]Map{}
+func (module *basicModule) Types() map[string]Type {
+	types := map[string]Type{}
 	for k, v := range module.types {
 		types[k] = v
 	}
 	return types
 }
 
-func (module *basicModule) Cryptos() map[string]Map {
-	cryptos := map[string]Map{}
+func (module *basicModule) Cryptos() map[string]Crypto {
+	cryptos := map[string]Crypto{}
 	for k, v := range module.cryptos {
 		cryptos[k] = v
 	}
 	return cryptos
 }
-func (module *basicModule) Crypto(name string, config Map, overrides ...bool) {
-	cryptos := []string{}
-	if vv, ok := config["crypto"].(string); ok && vv != "" {
-		cryptos = append(cryptos, vv)
-	} else if vvs, ok := config["cryptos"].([]string); ok {
-		cryptos = append(cryptos, vvs...)
-	} else {
-		cryptos = append(cryptos, name)
-	}
-
+func (module *basicModule) Crypto(name string, config Crypto, overrides ...bool) {
 	override := true
 	if len(overrides) > 0 {
 		override = overrides[0]
 	}
 
-	for _, key := range cryptos {
+	alias := make([]string, 0)
+	if name != "" {
+		alias = append(alias, name)
+	}
+	if config.Alias != nil {
+		alias = append(alias, config.Alias...)
+	}
+
+	for _, key := range alias {
 		if override {
 			module.cryptos[key] = config
 		} else {
@@ -355,20 +497,18 @@ func (module *basicModule) typeDefaultValue(value Any, config Map) Any {
 	return fmt.Sprintf("%s", value)
 }
 
-func (module *basicModule) typeValid(name string) func(Any, Map) bool {
+func (module *basicModule) typeValid(name string) TypeValidFunc {
 	if config, ok := module.types[name]; ok {
-		switch method := config["valid"].(type) {
-		case func(Any, Map) bool:
-			return method
+		if config.Valid != nil {
+			return config.Valid
 		}
 	}
 	return module.typeDefaultValid
 }
-func (module *basicModule) typeValue(name string) func(Any, Map) Any {
+func (module *basicModule) typeValue(name string) TypeValueFunc {
 	if config, ok := module.types[name]; ok {
-		switch method := config["value"].(type) {
-		case func(Any, Map) Any:
-			return method
+		if config.Value != nil {
+			return config.Value
 		}
 	}
 	return module.typeDefaultValue
@@ -377,34 +517,33 @@ func (module *basicModule) typeMethod(name string) (func(Any, Map) bool, func(An
 	return module.typeValid(name), module.typeValue(name)
 }
 
-func (module *basicModule) cryptoDefaultEncode(value Any) Any {
+func (module *basicModule) cryptoDefaultEncode(value Any, setting Map) Any {
 	return value
 }
-func (module *basicModule) cryptoDefaultDecode(value Any) Any {
+func (module *basicModule) cryptoDefaultDecode(value Any, setting Map) Any {
 	return value
 }
 
-func (module *basicModule) cryptoEncode(name string) (encode func(Any) Any) {
+func (module *basicModule) cryptoEncode(name string) (CryptoEncodeFunc, Map) {
 	if config, ok := module.cryptos[name]; ok {
-		switch method := config["encode"].(type) {
-		case func(Any) Any:
-			return method
+		if config.Encode != nil {
+			return config.Encode, config.Setting
 		}
 	}
-	return module.cryptoDefaultEncode
+	return module.cryptoDefaultEncode, Map{}
 }
-func (module *basicModule) cryptoDecode(name string) func(Any) Any {
+func (module *basicModule) cryptoDecode(name string) (CryptoDecodeFunc, Map) {
 	if config, ok := module.cryptos[name]; ok {
-		switch method := config["decode"].(type) {
-		case func(Any) Any:
-			return method
+		if config.Decode != nil {
+			return config.Decode, config.Setting
 		}
 	}
-	return module.cryptoDefaultDecode
+	return module.cryptoDefaultDecode, Map{}
 }
-func (module *basicModule) cryptoMethod(name string) (func(Any) Any, func(Any) Any) {
-	return module.cryptoEncode(name), module.cryptoDecode(name)
-}
+
+// func (module *basicModule) cryptoMethod(name string) (CryptoEncodeFunc, CryptoDecodeFunc) {
+// 	return module.cryptoEncode(name), module.cryptoDecode(name)
+// }
 
 //一定要返回*Result，
 //因为在定义参数的时候，可以自定义empty,error两个属性， 返回自定义的结果
@@ -661,8 +800,8 @@ func (module *basicModule) Mapping(config Map, data Map, value Map, argn bool, p
 					// if sv,ok := fieldValue.(string); ok {
 
 					//得到解密方法
-					decode := module.cryptoDecode(ct)
-					if val := decode(fieldValue); val != nil {
+					decode, setting := module.cryptoDecode(ct)
+					if val := decode(fieldValue, setting); val != nil {
 						//前方解过密了，表示该参数，不再加密
 						//因为加密解密，只有一个2选1的
 						//比如 args 只需要解密 data 只需要加密
@@ -824,8 +963,8 @@ func (module *basicModule) Mapping(config Map, data Map, value Map, argn bool, p
 				   //不用转了，因为hashid这样的加密就要int64
 				*/
 
-				encode := module.cryptoEncode(ct)
-				if val := encode(fieldValue); val != nil {
+				encode, setting := module.cryptoEncode(ct)
+				if val := encode(fieldValue, setting); val != nil {
 					fieldValue = val
 				}
 			}
@@ -840,36 +979,37 @@ func (module *basicModule) Mapping(config Map, data Map, value Map, argn bool, p
 	//遍历配置	end
 }
 
-func State(config Map, overrides ...bool) {
-	ms := map[string]int{}
+// func State(config Map, overrides ...bool) {
+// 	ms := map[string]int{}
 
-	for k, v := range config {
-		if vv, ok := v.(int); ok {
-			ms[k] = vv
-		} else if vv, ok := v.(int64); ok {
-			ms[k] = int(vv)
-		}
-	}
+// 	for k, v := range config {
+// 		if vv, ok := v.(int); ok {
+// 			ms[k] = vv
+// 		} else if vv, ok := v.(int64); ok {
+// 			ms[k] = int(vv)
+// 		}
+// 	}
 
-	ark.Basic.State(ms, overrides...)
-}
+// 	ark.Basic.State(ms, overrides...)
+// }
 func Code(name string, defs ...int) int {
 	return ark.Basic.Code(name, defs...)
 }
-func Mime(config Map, overrides ...bool) {
-	ms := map[string][]string{}
 
-	for k, v := range config {
-		switch vv := v.(type) {
-		case string:
-			ms[k] = []string{vv}
-		case []string:
-			ms[k] = vv
-		}
-	}
+// func Mime(config Map, overrides ...bool) {
+// 	ms := map[string][]string{}
 
-	ark.Basic.Mime(ms, overrides...)
-}
+// 	for k, v := range config {
+// 		switch vv := v.(type) {
+// 		case string:
+// 			ms[k] = []string{vv}
+// 		case []string:
+// 			ms[k] = vv
+// 		}
+// 	}
+
+// 	ark.Basic.Mime(ms, overrides...)
+// }
 func Mimetype(ext string, defs ...string) string {
 	return ark.Basic.Mimetype(ext, defs...)
 }
@@ -879,23 +1019,24 @@ func Extension(mime string, defs ...string) string {
 func String(lang, name string, args ...Any) string {
 	return ark.Basic.String(lang, name, args...)
 }
-func Regular(config Map, overrides ...bool) {
-	rs := map[string][]string{}
 
-	for k, v := range config {
-		switch vv := v.(type) {
-		case string:
-			rs[k] = []string{vv}
-		case []string:
-			rs[k] = vv
-		}
-	}
+// func Regular(config Map, overrides ...bool) {
+// 	rs := map[string][]string{}
 
-	ark.Basic.Regular(rs, overrides...)
-}
-func Express(name string, defs ...string) []string {
-	return ark.Basic.Express(name, defs...)
-}
+// 	for k, v := range config {
+// 		switch vv := v.(type) {
+// 		case string:
+// 			rs[k] = []string{vv}
+// 		case []string:
+// 			rs[k] = vv
+// 		}
+// 	}
+
+// 	ark.Basic.Regular(rs, overrides...)
+// }
+// func Expressions(name string, defs ...string) []string {
+// 	return ark.Basic.Expressions(name, defs...)
+// }
 func Match(value, regular string) bool {
 	return ark.Basic.Match(value, regular)
 }
@@ -907,14 +1048,14 @@ func Results(langs ...string) map[int]string {
 // func Type(name string, config Map, overrides ...bool) {
 // 	ark.Basic.Type(name, config, overrides...)
 // }
-func Types() map[string]Map {
+func Types() map[string]Type {
 	return ark.Basic.Types()
 }
 
 // func Crypto(name string, config Map, overrides ...bool) {
 // 	ark.Basic.Crypto(name, config, overrides...)
 // }
-func Cryptos() map[string]Map {
+func Cryptos() map[string]Crypto {
 	return ark.Basic.Cryptos()
 }
 func Mapping(config Map, data Map, value Map, argn bool, pass bool, ctxs ...context) *Res {

@@ -133,28 +133,101 @@ type (
 		root   string
 	}
 
-	httpSiteFuncs = map[string][]HttpFunc
-	httpModule    struct {
+	httpModule struct {
 		mutex   sync.Mutex
 		drivers map[string]HttpDriver
 
 		routers       map[string]Map
-		routerActions httpSiteFuncs
+		routerActions map[string][]HttpFunc
 
-		//为了提高效率，这里直接保存
-		filters         map[string]Map
-		requestFilters  httpSiteFuncs
-		executeFilters  httpSiteFuncs
-		responseFilters httpSiteFuncs
+		//拦截器
+		requestNames    []string
+		requestFilters  map[string]RequestFilter
+		requestActions  map[string][]HttpFunc
+		executeNames    []string
+		executeFilters  map[string]ExecuteFilter
+		executeActions  map[string][]HttpFunc
+		responseNames   []string
+		responseFilters map[string]ResponseFilter
+		responseActions map[string][]HttpFunc
 
-		handlers       map[string]Map
-		foundHandlers  httpSiteFuncs
-		errorHandlers  httpSiteFuncs
-		failedHandlers httpSiteFuncs
-		deniedHandlers httpSiteFuncs
+		//处理器
+		foundNames     []string
+		foundHandlers  map[string]FoundHandler
+		foundActions   map[string][]HttpFunc
+		errorNames     []string
+		errorHandlers  map[string]ErrorHandler
+		errorActions   map[string][]HttpFunc
+		failedNames    []string
+		failedHandlers map[string]FailedHandler
+		failedActions  map[string][]HttpFunc
+		deniedNames    []string
+		deniedHandlers map[string]DeniedHandler
+		deniedActions  map[string][]HttpFunc
 
 		connect HttpConnect
 		url     *httpUrl
+	}
+
+	Filter struct {
+		site     string   `json:"-"`
+		Name     string   `json:"name"`
+		Desc     string   `json:"desc"`
+		Request  HttpFunc `json:"-"`
+		Execute  HttpFunc `json:"-"`
+		Response HttpFunc `json:"-"`
+	}
+	RequestFilter struct {
+		site   string   `json:"-"`
+		Name   string   `json:"name"`
+		Desc   string   `json:"desc"`
+		Action HttpFunc `json:"-"`
+	}
+	ExecuteFilter struct {
+		site   string   `json:"-"`
+		Name   string   `json:"name"`
+		Desc   string   `json:"desc"`
+		Action HttpFunc `json:"-"`
+	}
+	ResponseFilter struct {
+		site   string   `json:"-"`
+		Name   string   `json:"name"`
+		Desc   string   `json:"desc"`
+		Action HttpFunc `json:"-"`
+	}
+
+	Handler struct {
+		site   string   `json:"-"`
+		Name   string   `json:"name"`
+		Desc   string   `json:"desc"`
+		Found  HttpFunc `json:"-"`
+		Error  HttpFunc `json:"-"`
+		Failed HttpFunc `json:"-"`
+		Denied HttpFunc `json:"-"`
+	}
+	FoundHandler struct {
+		site   string   `json:"-"`
+		Name   string   `json:"name"`
+		Desc   string   `json:"desc"`
+		Action HttpFunc `json:"-"`
+	}
+	ErrorHandler struct {
+		site   string   `json:"-"`
+		Name   string   `json:"name"`
+		Desc   string   `json:"desc"`
+		Action HttpFunc `json:"-"`
+	}
+	FailedHandler struct {
+		site   string   `json:"-"`
+		Name   string   `json:"name"`
+		Desc   string   `json:"desc"`
+		Action HttpFunc `json:"-"`
+	}
+	DeniedHandler struct {
+		site   string   `json:"-"`
+		Name   string   `json:"name"`
+		Desc   string   `json:"desc"`
+		Action HttpFunc `json:"-"`
 	}
 )
 
@@ -163,18 +236,30 @@ func newHttp() *httpModule {
 		drivers: make(map[string]HttpDriver),
 
 		routers:       make(map[string]Map),
-		routerActions: make(httpSiteFuncs),
+		routerActions: make(map[string][]HttpFunc),
 
-		filters:         make(map[string]Map),
-		requestFilters:  make(httpSiteFuncs),
-		executeFilters:  make(httpSiteFuncs),
-		responseFilters: make(httpSiteFuncs),
+		requestFilters:  make(map[string]RequestFilter),
+		requestActions:  make(map[string][]HttpFunc),
+		executeFilters:  make(map[string]ExecuteFilter),
+		executeActions:  make(map[string][]HttpFunc),
+		responseFilters: make(map[string]ResponseFilter),
+		responseActions: make(map[string][]HttpFunc),
 
-		handlers:       make(map[string]Map),
-		foundHandlers:  make(httpSiteFuncs),
-		errorHandlers:  make(httpSiteFuncs),
-		failedHandlers: make(httpSiteFuncs),
-		deniedHandlers: make(httpSiteFuncs),
+		foundNames:    make([]string, 0),
+		foundHandlers: make(map[string]FoundHandler),
+		foundActions:  make(map[string][]HttpFunc),
+
+		errorNames:    make([]string, 0),
+		errorHandlers: make(map[string]ErrorHandler),
+		errorActions:  make(map[string][]HttpFunc),
+
+		failedNames:    make([]string, 0),
+		failedHandlers: make(map[string]FailedHandler),
+		failedActions:  make(map[string][]HttpFunc),
+
+		deniedNames:    make([]string, 0),
+		deniedHandlers: make(map[string]DeniedHandler),
+		deniedActions:  make(map[string][]HttpFunc),
 
 		url: &httpUrl{},
 	}
@@ -441,239 +526,385 @@ func (module *httpModule) Routers(sites ...string) map[string]Map {
 
 	return routers
 }
-func (module *httpModule) Filter(name string, config Map, overrides ...bool) {
+func (module *httpModule) Filter(name string, config Filter, overrides ...bool) {
+	if config.Request != nil {
+		module.RequestFilter(name, RequestFilter{config.site, config.Name, config.Desc, config.Request}, overrides...)
+	}
+	if config.Execute != nil {
+		module.ExecuteFilter(name, ExecuteFilter{config.site, config.Name, config.Desc, config.Execute}, overrides...)
+	}
+	if config.Response != nil {
+		module.ResponseFilter(name, ResponseFilter{config.site, config.Name, config.Desc, config.Response}, overrides...)
+	}
+}
+
+func (module *httpModule) RequestFilter(name string, config RequestFilter, overrides ...bool) {
 	override := true
 	if len(overrides) > 0 {
 		override = overrides[0]
 	}
 
+	//从名称里找站点
 	names := strings.Split(name, ".")
 	if len(names) <= 1 {
 		name = "*." + name
 	}
 
 	//直接的时候直接拆分成目标格式
-	filters := map[string]Map{}
+	filters := make(map[string]RequestFilter)
 	if strings.HasPrefix(name, "*.") {
 		//全站点
 		for site, _ := range ark.Config.Site {
 			siteName := strings.Replace(name, "*", site, 1)
-			siteConfig := Map{}
-
-			//复制配置
-			for k, v := range config {
-				siteConfig[k] = v
+			filters[siteName] = RequestFilter{
+				site, config.Name, config.Desc, config.Action,
 			}
-			//站点名
-			siteConfig["site"] = site
-
-			//先记录下
-			filters[siteName] = siteConfig
 		}
 	} else {
 		if len(names) >= 2 {
-			config["site"] = names[0]
+			config.site = names[0]
 		}
 		//单站点
 		filters[name] = config
 	}
 
-	//这里才是真的注册
-	for k, v := range filters {
+	for key, val := range filters {
 		if override {
-			module.filters[k] = v
+			module.requestFilters[key] = val
 		} else {
-			if _, ok := module.filters[k]; ok == false {
-				module.filters[k] = v
+			if _, ok := module.requestFilters[key]; ok == false {
+				module.requestFilters[key] = val
 			}
 		}
 	}
 }
-func (module *httpModule) initFilterActions() {
 
-	for _, config := range module.filters {
-		site := ""
-		if vv, ok := config["site"].(string); ok {
-			site = vv
-		}
-
-		//请求拦截器
-		if _, ok := module.requestFilters[site]; ok == false {
-			module.requestFilters[site] = make([]HttpFunc, 0)
-		}
-		switch v := config["request"].(type) {
-		case func(*Http):
-			module.requestFilters[site] = append(module.requestFilters[site], v)
-		case []func(*Http):
-			for _, vv := range v {
-				module.requestFilters[site] = append(module.requestFilters[site], vv)
-			}
-		case HttpFunc:
-			module.requestFilters[site] = append(module.requestFilters[site], v)
-		case []HttpFunc:
-			module.requestFilters[site] = append(module.requestFilters[site], v...)
-		}
-
-		//执行拦截器
-		if _, ok := module.executeFilters[site]; ok == false {
-			module.executeFilters[site] = make([]HttpFunc, 0)
-		}
-		switch v := config["execute"].(type) {
-		case func(*Http):
-			module.executeFilters[site] = append(module.executeFilters[site], v)
-		case []func(*Http):
-			for _, vv := range v {
-				module.executeFilters[site] = append(module.executeFilters[site], vv)
-			}
-		case HttpFunc:
-			module.executeFilters[site] = append(module.executeFilters[site], v)
-		case []HttpFunc:
-			module.executeFilters[site] = append(module.executeFilters[site], v...)
-		}
-
-		//响应拦截器
-		if _, ok := module.responseFilters[site]; ok == false {
-			module.responseFilters[site] = make([]HttpFunc, 0)
-		}
-		switch v := config["response"].(type) {
-		case func(*Http):
-			module.responseFilters[site] = append(module.responseFilters[site], v)
-		case []func(*Http):
-			for _, vv := range v {
-				module.responseFilters[site] = append(module.responseFilters[site], vv)
-			}
-		case HttpFunc:
-			module.responseFilters[site] = append(module.responseFilters[site], v)
-		case []HttpFunc:
-			module.responseFilters[site] = append(module.responseFilters[site], v...)
-		}
-	}
-}
-func (module *httpModule) Handler(name string, config Map, overrides ...bool) {
+func (module *httpModule) ExecuteFilter(name string, config ExecuteFilter, overrides ...bool) {
 	override := true
 	if len(overrides) > 0 {
 		override = overrides[0]
 	}
 
+	//从名称里找站点
 	names := strings.Split(name, ".")
 	if len(names) <= 1 {
 		name = "*." + name
 	}
 
 	//直接的时候直接拆分成目标格式
-	handlers := map[string]Map{}
+	filters := make(map[string]ExecuteFilter)
 	if strings.HasPrefix(name, "*.") {
 		//全站点
 		for site, _ := range ark.Config.Site {
 			siteName := strings.Replace(name, "*", site, 1)
-			siteConfig := Map{}
-
-			//复制配置
-			for k, v := range config {
-				siteConfig[k] = v
+			filters[siteName] = ExecuteFilter{
+				site, config.Name, config.Desc, config.Action,
 			}
-			//站点名
-			siteConfig["site"] = site
-
-			//先记录下
-			handlers[siteName] = siteConfig
 		}
 	} else {
 		if len(names) >= 2 {
-			config["site"] = names[0]
+			config.site = names[0]
+		}
+		//单站点
+		filters[name] = config
+	}
+
+	for key, val := range filters {
+		if override {
+			module.executeFilters[key] = val
+		} else {
+			if _, ok := module.executeFilters[key]; ok == false {
+				module.executeFilters[key] = val
+			}
+		}
+	}
+}
+
+func (module *httpModule) ResponseFilter(name string, config ResponseFilter, overrides ...bool) {
+	override := true
+	if len(overrides) > 0 {
+		override = overrides[0]
+	}
+
+	//从名称里找站点
+	names := strings.Split(name, ".")
+	if len(names) <= 1 {
+		name = "*." + name
+	}
+
+	//直接的时候直接拆分成目标格式
+	filters := make(map[string]ResponseFilter)
+	if strings.HasPrefix(name, "*.") {
+		//全站点
+		for site, _ := range ark.Config.Site {
+			siteName := strings.Replace(name, "*", site, 1)
+			filters[siteName] = ResponseFilter{
+				site, config.Name, config.Desc, config.Action,
+			}
+		}
+	} else {
+		if len(names) >= 2 {
+			config.site = names[0]
+		}
+		//单站点
+		filters[name] = config
+	}
+
+	for key, val := range filters {
+		if override {
+			module.responseFilters[key] = val
+		} else {
+			if _, ok := module.responseFilters[key]; ok == false {
+				module.responseFilters[key] = val
+			}
+		}
+	}
+}
+
+func (module *httpModule) initFilterActions() {
+	//请求拦截器
+	for _, name := range module.requestNames {
+		config := module.requestFilters[name]
+		if _, ok := module.requestActions[config.site]; ok == false {
+			module.requestActions[config.site] = make([]HttpFunc, 0)
+		}
+		module.requestActions[config.site] = append(module.requestActions[config.site], config.Action)
+	}
+
+	//执行拦截器
+	for _, name := range module.executeNames {
+		config := module.executeFilters[name]
+		if _, ok := module.executeActions[config.site]; ok == false {
+			module.executeActions[config.site] = make([]HttpFunc, 0)
+		}
+		module.executeActions[config.site] = append(module.executeActions[config.site], config.Action)
+	}
+
+	//响应拦截器
+	for _, name := range module.responseNames {
+		config := module.responseFilters[name]
+		if _, ok := module.responseActions[config.site]; ok == false {
+			module.responseActions[config.site] = make([]HttpFunc, 0)
+		}
+		module.responseActions[config.site] = append(module.responseActions[config.site], config.Action)
+	}
+}
+
+func (module *httpModule) Handler(name string, config Handler, overrides ...bool) {
+	if config.Found != nil {
+		module.FoundHandler(name, FoundHandler{config.site, config.Name, config.Desc, config.Found}, overrides...)
+	}
+	if config.Error != nil {
+		module.ErrorHandler(name, ErrorHandler{config.site, config.Name, config.Desc, config.Error}, overrides...)
+	}
+	if config.Failed != nil {
+		module.FailedHandler(name, FailedHandler{config.site, config.Name, config.Desc, config.Failed}, overrides...)
+	}
+	if config.Denied != nil {
+		module.DeniedHandler(name, DeniedHandler{config.site, config.Name, config.Desc, config.Denied}, overrides...)
+	}
+}
+
+func (module *httpModule) FoundHandler(name string, config FoundHandler, overrides ...bool) {
+	override := true
+	if len(overrides) > 0 {
+		override = overrides[0]
+	}
+
+	//从名称里找站点
+	names := strings.Split(name, ".")
+	if len(names) <= 1 {
+		name = "*." + name
+	}
+
+	//直接的时候直接拆分成目标格式
+	handlers := make(map[string]FoundHandler)
+	if strings.HasPrefix(name, "*.") {
+		//全站点
+		for site, _ := range ark.Config.Site {
+			siteName := strings.Replace(name, "*", site, 1)
+			handlers[siteName] = FoundHandler{
+				site, config.Name, config.Desc, config.Action,
+			}
+		}
+	} else {
+		if len(names) >= 2 {
+			config.site = names[0]
 		}
 		//单站点
 		handlers[name] = config
 	}
 
-	//这里才是真的注册
-	for k, v := range handlers {
+	for key, val := range handlers {
 		if override {
-			module.handlers[k] = v
+			module.foundHandlers[key] = val
 		} else {
-			if _, ok := module.handlers[k]; ok == false {
-				module.handlers[k] = v
+			if _, ok := module.foundHandlers[key]; ok == false {
+				module.foundHandlers[key] = val
 			}
 		}
 	}
 }
-func (module *httpModule) initHandlerActions() {
 
-	for _, config := range module.handlers {
-		site := ""
-		if vv, ok := config["site"].(string); ok {
-			site = vv
-		}
-
-		//不存在处理器
-		if _, ok := module.foundHandlers[site]; ok == false {
-			module.foundHandlers[site] = make([]HttpFunc, 0)
-		}
-		switch v := config["found"].(type) {
-		case func(*Http):
-			module.foundHandlers[site] = append(module.foundHandlers[site], v)
-		case []func(*Http):
-			for _, vv := range v {
-				module.foundHandlers[site] = append(module.foundHandlers[site], vv)
-			}
-		case HttpFunc:
-			module.foundHandlers[site] = append(module.foundHandlers[site], v)
-		case []HttpFunc:
-			module.foundHandlers[site] = append(module.foundHandlers[site], v...)
-		}
-
-		//错误处理器
-		if _, ok := module.errorHandlers[site]; ok == false {
-			module.errorHandlers[site] = make([]HttpFunc, 0)
-		}
-		switch v := config["error"].(type) {
-		case func(*Http):
-			module.errorHandlers[site] = append(module.errorHandlers[site], v)
-		case []func(*Http):
-			for _, vv := range v {
-				module.errorHandlers[site] = append(module.errorHandlers[site], vv)
-			}
-		case HttpFunc:
-			module.errorHandlers[site] = append(module.errorHandlers[site], v)
-		case []HttpFunc:
-			module.errorHandlers[site] = append(module.errorHandlers[site], v...)
-		}
-
-		//失败处理器
-		if _, ok := module.failedHandlers[site]; ok == false {
-			module.failedHandlers[site] = make([]HttpFunc, 0)
-		}
-		switch v := config["failed"].(type) {
-		case func(*Http):
-			module.failedHandlers[site] = append(module.failedHandlers[site], v)
-		case []func(*Http):
-			for _, vv := range v {
-				module.failedHandlers[site] = append(module.failedHandlers[site], vv)
-			}
-		case HttpFunc:
-			module.failedHandlers[site] = append(module.failedHandlers[site], v)
-		case []HttpFunc:
-			module.failedHandlers[site] = append(module.failedHandlers[site], v...)
-		}
-
-		//拒绝处理器
-		if _, ok := module.deniedHandlers[site]; ok == false {
-			module.deniedHandlers[site] = make([]HttpFunc, 0)
-		}
-		switch v := config["denied"].(type) {
-		case func(*Http):
-			module.deniedHandlers[site] = append(module.deniedHandlers[site], v)
-		case []func(*Http):
-			for _, vv := range v {
-				module.deniedHandlers[site] = append(module.deniedHandlers[site], vv)
-			}
-		case HttpFunc:
-			module.deniedHandlers[site] = append(module.deniedHandlers[site], v)
-		case []HttpFunc:
-			module.deniedHandlers[site] = append(module.deniedHandlers[site], v...)
-		}
+func (module *httpModule) ErrorHandler(name string, config ErrorHandler, overrides ...bool) {
+	override := true
+	if len(overrides) > 0 {
+		override = overrides[0]
 	}
 
+	//从名称里找站点
+	names := strings.Split(name, ".")
+	if len(names) <= 1 {
+		name = "*." + name
+	}
+
+	//直接的时候直接拆分成目标格式
+	handlers := make(map[string]ErrorHandler)
+	if strings.HasPrefix(name, "*.") {
+		//全站点
+		for site, _ := range ark.Config.Site {
+			siteName := strings.Replace(name, "*", site, 1)
+			handlers[siteName] = ErrorHandler{
+				site, config.Name, config.Desc, config.Action,
+			}
+		}
+	} else {
+		if len(names) >= 2 {
+			config.site = names[0]
+		}
+		//单站点
+		handlers[name] = config
+	}
+
+	for key, val := range handlers {
+		if override {
+			module.errorHandlers[key] = val
+		} else {
+			if _, ok := module.errorHandlers[key]; ok == false {
+				module.errorHandlers[key] = val
+			}
+		}
+	}
+}
+
+func (module *httpModule) FailedHandler(name string, config FailedHandler, overrides ...bool) {
+	override := true
+	if len(overrides) > 0 {
+		override = overrides[0]
+	}
+
+	//从名称里找站点
+	names := strings.Split(name, ".")
+	if len(names) <= 1 {
+		name = "*." + name
+	}
+
+	//直接的时候直接拆分成目标格式
+	handlers := make(map[string]FailedHandler)
+	if strings.HasPrefix(name, "*.") {
+		//全站点
+		for site, _ := range ark.Config.Site {
+			siteName := strings.Replace(name, "*", site, 1)
+			handlers[siteName] = FailedHandler{
+				site, config.Name, config.Desc, config.Action,
+			}
+		}
+	} else {
+		if len(names) >= 2 {
+			config.site = names[0]
+		}
+		//单站点
+		handlers[name] = config
+	}
+
+	for key, val := range handlers {
+		if override {
+			module.failedHandlers[key] = val
+		} else {
+			if _, ok := module.failedHandlers[key]; ok == false {
+				module.failedHandlers[key] = val
+			}
+		}
+	}
+}
+
+func (module *httpModule) DeniedHandler(name string, config DeniedHandler, overrides ...bool) {
+	override := true
+	if len(overrides) > 0 {
+		override = overrides[0]
+	}
+
+	//从名称里找站点
+	names := strings.Split(name, ".")
+	if len(names) <= 1 {
+		name = "*." + name
+	}
+
+	//直接的时候直接拆分成目标格式
+	handlers := make(map[string]DeniedHandler)
+	if strings.HasPrefix(name, "*.") {
+		//全站点
+		for site, _ := range ark.Config.Site {
+			siteName := strings.Replace(name, "*", site, 1)
+			handlers[siteName] = DeniedHandler{
+				site, config.Name, config.Desc, config.Action,
+			}
+		}
+	} else {
+		if len(names) >= 2 {
+			config.site = names[0]
+		}
+		//单站点
+		handlers[name] = config
+	}
+
+	for key, val := range handlers {
+		if override {
+			module.deniedHandlers[key] = val
+		} else {
+			if _, ok := module.deniedHandlers[key]; ok == false {
+				module.deniedHandlers[key] = val
+			}
+		}
+	}
+}
+
+func (module *httpModule) initHandlerActions() {
+	//found处理器
+	for _, name := range module.foundNames {
+		config := module.foundHandlers[name]
+		if _, ok := module.foundActions[config.site]; ok == false {
+			module.foundActions[config.site] = make([]HttpFunc, 0)
+		}
+		module.foundActions[config.site] = append(module.foundActions[config.site], config.Action)
+	}
+
+	//error处理器
+	for _, name := range module.errorNames {
+		config := module.errorHandlers[name]
+		if _, ok := module.errorActions[config.site]; ok == false {
+			module.errorActions[config.site] = make([]HttpFunc, 0)
+		}
+		module.errorActions[config.site] = append(module.errorActions[config.site], config.Action)
+	}
+
+	//failed处理器
+	for _, name := range module.failedNames {
+		config := module.failedHandlers[name]
+		if _, ok := module.failedActions[config.site]; ok == false {
+			module.failedActions[config.site] = make([]HttpFunc, 0)
+		}
+		module.failedActions[config.site] = append(module.failedActions[config.site], config.Action)
+	}
+
+	//denied处理器
+	for _, name := range module.deniedNames {
+		config := module.deniedHandlers[name]
+		if _, ok := module.deniedActions[config.site]; ok == false {
+			module.deniedActions[config.site] = make([]HttpFunc, 0)
+		}
+		module.deniedActions[config.site] = append(module.deniedActions[config.site], config.Action)
+	}
 }
 
 //事件Http  请求开始
@@ -687,7 +918,7 @@ func (module *httpModule) serve(thread HttpThread) {
 	//Debug("ccc", ctx.Name, ctx.Config)
 
 	//request拦截器，加入调用列表
-	if funcs, ok := module.requestFilters[ctx.Site]; ok {
+	if funcs, ok := module.requestActions[ctx.Site]; ok {
 		ctx.next(funcs...)
 	}
 	ctx.next(module.request)
@@ -804,7 +1035,7 @@ func (module *httpModule) execute(ctx *Http) {
 	ctx.clear()
 
 	//executeFilters
-	if funcs, ok := module.executeFilters[ctx.Site]; ok {
+	if funcs, ok := module.executeActions[ctx.Site]; ok {
 		ctx.next(funcs...)
 	}
 
@@ -824,7 +1055,7 @@ func (module *httpModule) response(ctx *Http) {
 	ctx.clear()
 
 	//response拦截器，加入调用列表
-	if funcs, ok := module.responseFilters[ctx.Site]; ok {
+	if funcs, ok := module.responseActions[ctx.Site]; ok {
 		ctx.next(funcs...)
 	}
 
@@ -1297,7 +1528,7 @@ func (module *httpModule) found(ctx *Http) {
 	ctx.next(funcs...)
 
 	//把处理器加入调用列表
-	if funcs, ok := module.foundHandlers[ctx.Site]; ok {
+	if funcs, ok := module.foundActions[ctx.Site]; ok {
 		ctx.next(funcs...)
 	}
 
@@ -1330,7 +1561,7 @@ func (module *httpModule) error(ctx *Http) {
 	ctx.next(funcs...)
 
 	//把错误处理器加入调用列表
-	if funcs, ok := module.errorHandlers[ctx.Site]; ok {
+	if funcs, ok := module.errorActions[ctx.Site]; ok {
 		ctx.next(funcs...)
 	}
 
@@ -1374,7 +1605,7 @@ func (module *httpModule) failed(ctx *Http) {
 	ctx.next(funcs...)
 
 	//把失败处理器加入调用列表
-	if funcs, ok := module.failedHandlers[ctx.Site]; ok {
+	if funcs, ok := module.failedActions[ctx.Site]; ok {
 		ctx.next(funcs...)
 	}
 
@@ -1406,7 +1637,7 @@ func (module *httpModule) denied(ctx *Http) {
 	ctx.next(funcs...)
 
 	//把失败处理器加入调用列表
-	if funcs, ok := module.deniedHandlers[ctx.Site]; ok {
+	if funcs, ok := module.deniedActions[ctx.Site]; ok {
 		ctx.next(funcs...)
 	}
 
@@ -1457,49 +1688,50 @@ func (site *httpSite) Router(name string, config Map, overrides ...bool) {
 	}
 	site.module.Router(realName, config, overrides...)
 }
-func (site *httpSite) Filter(name string, config Map, overrides ...bool) {
-	realName := fmt.Sprintf("%s.%s", site.name, name)
-	site.module.Filter(realName, config, overrides...)
-}
-func (site *httpSite) RequestFilter(name string, config Map) {
-	config["request"] = config["action"]
-	delete(config, "action")
-	site.Filter(name, config)
-}
-func (site *httpSite) ExecuteFilter(name string, config Map) {
-	config["execute"] = config["action"]
-	delete(config, "action")
-	site.Filter(name, config)
-}
-func (site *httpSite) ResponseFilter(name string, config Map) {
-	config["response"] = config["action"]
-	delete(config, "action")
-	site.Filter(name, config)
-}
-func (site *httpSite) Handler(name string, config Map, overrides ...bool) {
-	realName := fmt.Sprintf("%s.%s", site.name, name)
-	site.module.Handler(realName, config, overrides...)
-}
-func (site *httpSite) FoundHandler(name string, config Map) {
-	config["found"] = config["action"]
-	delete(config, "action")
-	site.Handler(name, config)
-}
-func (site *httpSite) ErrorHandler(name string, config Map) {
-	config["error"] = config["action"]
-	delete(config, "action")
-	site.Handler(name, config)
-}
-func (site *httpSite) FailedHandler(name string, config Map) {
-	config["failed"] = config["action"]
-	delete(config, "action")
-	site.Handler(name, config)
-}
-func (site *httpSite) DeniedHandler(name string, config Map) {
-	config["denied"] = config["action"]
-	delete(config, "action")
-	site.Handler(name, config)
-}
+
+// func (site *httpSite) Filter(name string, config Map, overrides ...bool) {
+// 	realName := fmt.Sprintf("%s.%s", site.name, name)
+// 	site.module.Filter(realName, config, overrides...)
+// }
+// func (site *httpSite) RequestFilter(name string, config Map) {
+// 	config["request"] = config["action"]
+// 	delete(config, "action")
+// 	site.Filter(name, config)
+// }
+// func (site *httpSite) ExecuteFilter(name string, config Map) {
+// 	config["execute"] = config["action"]
+// 	delete(config, "action")
+// 	site.Filter(name, config)
+// }
+// func (site *httpSite) ResponseFilter(name string, config Map) {
+// 	config["response"] = config["action"]
+// 	delete(config, "action")
+// 	site.Filter(name, config)
+// }
+// func (site *httpSite) Handler(name string, config Map, overrides ...bool) {
+// 	realName := fmt.Sprintf("%s.%s", site.name, name)
+// 	site.module.Handler(realName, config, overrides...)
+// }
+// func (site *httpSite) FoundHandler(name string, config Map) {
+// 	config["found"] = config["action"]
+// 	delete(config, "action")
+// 	site.Handler(name, config)
+// }
+// func (site *httpSite) ErrorHandler(name string, config Map) {
+// 	config["error"] = config["action"]
+// 	delete(config, "action")
+// 	site.Handler(name, config)
+// }
+// func (site *httpSite) FailedHandler(name string, config Map) {
+// 	config["failed"] = config["action"]
+// 	delete(config, "action")
+// 	site.Handler(name, config)
+// }
+// func (site *httpSite) DeniedHandler(name string, config Map) {
+// 	config["denied"] = config["action"]
+// 	delete(config, "action")
+// 	site.Handler(name, config)
+// }
 
 // func Filter(name string, config Map, overrides ...bool) {
 // 	ark.Http.Filter(name, config, overrides...)

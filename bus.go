@@ -51,20 +51,32 @@ type (
 	busModule struct {
 		mutex        sync.Mutex
 		drivers      map[string]BusDriver
-		events       map[string]Map
-		queues       map[string]Map
+		events       map[string]Event
+		queues       map[string]Queue
 		queueThreads map[string]int
 
 		connects map[string]BusConnect
 		hashring *hashring.HashRing
+	}
+
+	Event struct {
+		Name  string   `json:"name"`
+		Desc  string   `json:"desc"`
+		Alias []string `json:"alias"`
+	}
+	Queue struct {
+		Name    string   `json:"name"`
+		Desc    string   `json:"desc"`
+		Alias   []string `json:"alias"`
+		Threads int      `json:"threads"`
 	}
 )
 
 func newBus() *busModule {
 	return &busModule{
 		drivers:      make(map[string]BusDriver, 0),
-		events:       make(map[string]Map),
-		queues:       make(map[string]Map),
+		events:       make(map[string]Event),
+		queues:       make(map[string]Queue),
 		queueThreads: make(map[string]int),
 
 		connects: make(map[string]BusConnect, 0),
@@ -94,59 +106,104 @@ func (module *busModule) Driver(name string, driver BusDriver, overrides ...bool
 	}
 }
 
-func (module *busModule) Event(name string, config Map, overrides ...bool) {
-	module.mutex.Lock()
-	defer module.mutex.Unlock()
+// func (module *busModule) Event(name string, config Map, overrides ...bool) {
+// 	module.mutex.Lock()
+// 	defer module.mutex.Unlock()
 
-	if config == nil {
-		panic("[总线]事伯不可为空")
-	}
+// 	if config == nil {
+// 		panic("[总线]事伯不可为空")
+// 	}
 
+// 	override := true
+// 	if len(overrides) > 0 {
+// 		override = overrides[0]
+// 	}
+
+// 	if override {
+// 		module.events[name] = config
+// 	} else {
+// 		if module.events[name] == nil {
+// 			module.events[name] = config
+// 		}
+// 	}
+// }
+
+func (module *busModule) Event(name string, config Event, overrides ...bool) {
 	override := true
 	if len(overrides) > 0 {
 		override = overrides[0]
 	}
 
-	if override {
-		module.events[name] = config
-	} else {
-		if module.events[name] == nil {
-			module.events[name] = config
+	alias := make([]string, 0)
+	if name != "" {
+		alias = append(alias, name)
+	}
+	if config.Alias != nil {
+		alias = append(alias, config.Alias...)
+	}
+
+	for _, key := range alias {
+		if override {
+			module.events[key] = config
+		} else {
+			if _, ok := module.events[key]; ok == false {
+				module.events[key] = config
+			}
 		}
 	}
 }
 
-func (module *busModule) Queue(name string, config Map, overrides ...bool) {
-	module.mutex.Lock()
-	defer module.mutex.Unlock()
+// func (module *busModule) Queue(name string, config Map, overrides ...bool) {
+// 	module.mutex.Lock()
+// 	defer module.mutex.Unlock()
 
-	if config == nil {
-		panic("[总线]事件不可为空")
-	}
+// 	if config == nil {
+// 		panic("[总线]事件不可为空")
+// 	}
 
+// 	override := true
+// 	if len(overrides) > 0 {
+// 		override = overrides[0]
+// 	}
+
+// 	if override {
+// 		module.queue(name, config)
+// 	} else {
+// 		if module.queues[name] == nil {
+// 			module.queue(name, config)
+// 		}
+// 	}
+// }
+
+func (module *busModule) Queue(name string, config Queue, overrides ...bool) {
 	override := true
 	if len(overrides) > 0 {
 		override = overrides[0]
 	}
 
-	if override {
-		module.queue(name, config)
-	} else {
-		if module.queues[name] == nil {
-			module.queue(name, config)
+	alias := make([]string, 0)
+	if name != "" {
+		alias = append(alias, name)
+	}
+	if config.Alias != nil {
+		alias = append(alias, config.Alias...)
+	}
+
+	if config.Threads <= 1 {
+		config.Threads = 1
+	}
+
+	for _, key := range alias {
+		if override {
+			module.queues[key] = config
+			module.queueThreads[key] = config.Threads
+		} else {
+			if _, ok := module.queues[key]; ok == false {
+				module.queues[key] = config
+				module.queueThreads[key] = config.Threads
+			}
 		}
 	}
-}
-func (module *busModule) queue(name string, config Map) {
-	module.queues[name] = config
-	thread := 1
-	if vv, ok := config["thread"].(int); ok {
-		thread = vv
-	}
-	if vv, ok := config["threadS"].(int); ok {
-		thread = vv
-	}
-	module.queueThreads[name] = thread
 }
 func (module *busModule) connecting(name string, config BusConfig) (BusConnect, error) {
 	if driver, ok := module.drivers[config.Driver]; ok {
@@ -303,12 +360,12 @@ func (module *busModule) EnqueueTo(bus string, name string, data []byte, delays 
 //--------------------------------------------
 
 // Event 注册事件
-func Event(name string, config Map, overrides ...bool) {
-	ark.Bus.Event(name, config, overrides...)
-}
-func Queue(name string, config Map, overrides ...bool) {
-	ark.Bus.Queue(name, config, overrides...)
-}
+// func Event(name string, config Map, overrides ...bool) {
+// 	ark.Bus.Event(name, config, overrides...)
+// }
+// func Queue(name string, config Map, overrides ...bool) {
+// 	ark.Bus.Queue(name, config, overrides...)
+// }
 
 // Publish 是发起事件
 func Publish(name string, value Map, delays ...time.Duration) error {

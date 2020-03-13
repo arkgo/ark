@@ -30,8 +30,7 @@ func Result(code int, state string, text string, overrides ...bool) *Res {
 	if len(overrides) == 0 {
 		overrides = append(overrides, false) //默认不替换
 	}
-	ark.Basic.State(map[string]int{state: code}, overrides...)
-	ark.Basic.Lang(DEFAULT, map[string]string{state: text}, overrides...)
+	ark.Basic.State(state, State{Code: code, String: text}, overrides...)
 	return codeResult(code, state) //结束不包括使用的文字，需要文字的时候走basic.String方法拿
 }
 

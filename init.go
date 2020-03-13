@@ -85,7 +85,7 @@ func config() *arkConfig {
 				Name:    "繁體中文",
 				Accepts: []string{"zh-TW", "zhTW", "tw"},
 			},
-			"en-US": langConfig{
+			"en": langConfig{
 				Name:    "English",
 				Accepts: []string{"en", "en-US"},
 			},
@@ -128,7 +128,7 @@ func config() *arkConfig {
 	if config.Mutex == nil {
 		config.Mutex = map[string]MutexConfig{
 			DEFAULT: {
-				Driver:  DEFAULT, Weight: 1, Expiry:  "2s",
+				Driver: DEFAULT, Weight: 1, Expiry: "2s",
 			},
 		}
 	} else {
