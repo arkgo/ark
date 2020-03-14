@@ -88,9 +88,9 @@ type (
 	dataModule struct {
 		mutex   sync.Mutex
 		drivers map[string]DataDriver
-		tables  map[string]Map
-		views   map[string]Map
-		models  map[string]Map
+		tables  map[string]Table
+		views   map[string]View
+		models  map[string]Model
 
 		//连接
 		connects map[string]DataConnect
@@ -102,14 +102,59 @@ type (
 		data *dataModule
 		base string
 	}
+
+	Params map[string]Param
+	Param  struct {
+		Type     string `json:"type"`
+		Require  bool   `json:"require"`
+		Nullable bool   `json:"nullable"`
+		Name     string `json:"name"`
+		Desc     string `json:"desc"`
+		Default  Any    `json:"default"`
+		Setting  Map    `json:"setting"`
+		Children Params `json:"children"`
+		Option   Option `json:"option"`
+
+		Empty *Res `json:"-"`
+		Error *Res `json:"-"`
+
+		Encode string        `json:"-"`
+		Decode string        `json:"-"`
+		Valid  TypeValidFunc `json:"-"`
+		Value  TypeValueFunc `json:"-"`
+	}
+	Option = map[string]string
+	Table  struct {
+		Name   string `json:"name"`
+		Desc   string `json:"desc"`
+		Schema string `json:"schema"`
+		Table  string `json:"table"`
+		Key    string `json:"key"`
+		Fields Params `json:"fields"`
+	}
+	View struct {
+		Name   string `json:"name"`
+		Desc   string `json:"desc"`
+		Schema string `json:"schema"`
+		View   string `json:"view"`
+		Key    string `json:"key"`
+		Fields Params `json:"fields"`
+	}
+	Model struct {
+		Name   string `json:"name"`
+		Desc   string `json:"desc"`
+		Model  string `json:"model"`
+		Key    string `json:"key"`
+		Fields Params `json:"fields"`
+	}
 )
 
 func newData() *dataModule {
 	return &dataModule{
 		drivers:  make(map[string]DataDriver, 0),
-		tables:   make(map[string]Map, 0),
-		views:    make(map[string]Map, 0),
-		models:   make(map[string]Map, 0),
+		tables:   make(map[string]Table, 0),
+		views:    make(map[string]View, 0),
+		models:   make(map[string]Model, 0),
 		connects: make(map[string]DataConnect, 0),
 	}
 }
@@ -180,71 +225,127 @@ func (module *dataModule) Driver(name string, driver DataDriver, overrides ...bo
 }
 
 //注册表
-func (module *dataModule) Table(name string, configs ...Map) Map {
+// func (module *dataModule) Table(name string, configs ...Map) Map {
+// 	module.mutex.Lock()
+// 	defer module.mutex.Unlock()
+
+// 	if len(configs) > 0 {
+// 		module.tables[name] = configs[0]
+// 	} else {
+// 		if vv, ok := module.tables[name]; ok {
+// 			return vv
+// 		}
+// 	}
+
+// 	return nil
+// }
+
+func (module *dataModule) Table(name string, config Table, overrides ...bool) {
 	module.mutex.Lock()
 	defer module.mutex.Unlock()
 
-	if len(configs) > 0 {
-		module.tables[name] = configs[0]
-	} else {
-		if vv, ok := module.tables[name]; ok {
-			return vv
-		}
+	override := true
+	if len(overrides) > 0 {
+		override = overrides[0]
 	}
 
+	if override {
+		module.tables[name] = config
+	} else {
+		if _, ok := module.tables[name]; ok == false {
+			module.tables[name] = config
+		}
+	}
+}
+func (module *dataModule) TableConfig(name string) *Table {
+	if config, ok := module.tables[name]; ok {
+		//注意：这里应该是复制了一份
+		return &config
+	}
 	return nil
 }
 
 //注册视图
-func (module *dataModule) View(name string, configs ...Map) Map {
+// func (module *dataModule) View(name string, configs ...Map) Map {
+// 	module.mutex.Lock()
+// 	defer module.mutex.Unlock()
+
+// 	if len(configs) > 0 {
+// 		module.views[name] = configs[0]
+// 	} else {
+// 		if vv, ok := module.views[name]; ok {
+// 			return vv
+// 		}
+// 	}
+
+// 	return nil
+// }
+
+func (module *dataModule) View(name string, config View, overrides ...bool) {
 	module.mutex.Lock()
 	defer module.mutex.Unlock()
 
-	if len(configs) > 0 {
-		module.views[name] = configs[0]
-	} else {
-		if vv, ok := module.views[name]; ok {
-			return vv
-		}
+	override := true
+	if len(overrides) > 0 {
+		override = overrides[0]
 	}
 
+	if override {
+		module.views[name] = config
+	} else {
+		if _, ok := module.views[name]; ok == false {
+			module.views[name] = config
+		}
+	}
+}
+func (module *dataModule) ViewConfig(name string) *View {
+	if config, ok := module.views[name]; ok {
+		//注意：这里应该是复制了一份
+		return &config
+	}
 	return nil
 }
 
 //注册模型
-func (module *dataModule) Model(name string, configs ...Map) Map {
+func (module *dataModule) Model(name string, config Model, overrides ...bool) {
 	module.mutex.Lock()
 	defer module.mutex.Unlock()
 
-	if len(configs) > 0 {
-		module.models[name] = configs[0]
-	} else {
-		if vv, ok := module.models[name]; ok {
-			return vv
-		}
+	override := true
+	if len(overrides) > 0 {
+		override = overrides[0]
 	}
 
+	if override {
+		module.models[name] = config
+	} else {
+		if _, ok := module.models[name]; ok == false {
+			module.models[name] = config
+		}
+	}
+}
+func (module *dataModule) ModelConfig(name string) *Model {
+	if config, ok := module.models[name]; ok {
+		//注意：这里应该是复制了一份
+		return &config
+	}
 	return nil
 }
 
-func (module *dataModule) Field(name string, field string, exts ...Map) Map {
-	fields := module.Fields(name, []string{field}, exts...)
-	config := Map{}
-	if vv, ok := fields[field].(Map); ok {
-		//复制一份，要不然会改写配置
-		for k, v := range vv {
-			config[k] = v
-		}
+func (module *dataModule) Field(name string, field string, requires ...bool) Param {
+	fields := module.Fields(name, []string{field})
+	var config Param
+	if vv, ok := fields[field]; ok {
+		config = vv
 	}
 
-	if len(exts) > 0 {
-		for k, v := range exts[0] {
-			config[k] = v
-		}
+	if len(requires) > 0 {
+		config.Require = requires[0]
 	}
+
 	return config
 }
-func (module *dataModule) Fields(name string, keys []string, exts ...Map) Map {
+func (module *dataModule) Fields(name string, keys []string, exts ...Params) Params {
 	if _, ok := module.tables[name]; ok {
 		return module.TableFields(name, keys, exts...)
 	} else if _, ok := module.views[name]; ok {
@@ -252,146 +353,143 @@ func (module *dataModule) Fields(name string, keys []string, exts ...Map) Map {
 	} else if _, ok := module.models[name]; ok {
 		return module.ModelFields(name, keys, exts...)
 	} else {
-		return Map{}
+		return Params{}
 	}
 }
-func (module *dataModule) TableFields(name string, keys []string, exts ...Map) Map {
-	m := Map{}
-	if config, ok := module.tables[name]; ok {
-		if fields, ok := config["fields"].(Map); ok {
-			// if keys==nil || len(keys) == 0 {
-			//空数组一个也不返
-			if keys == nil {
-				for k, v := range fields {
-					m[k] = v
+func (module *dataModule) TableFields(name string, keys []string, exts ...Params) Params {
+	fields := Params{}
+	if config, ok := module.tables[name]; ok && config.Fields != nil {
+		//空数组一个也不返
+		if keys == nil {
+			for k, v := range config.Fields {
+				fields[k] = v
+			}
+		} else {
+			for _, k := range keys {
+				if v, ok := config.Fields[k]; ok {
+					fields[k] = v
 				}
-			} else {
-				for _, k := range keys {
-					if v, ok := fields[k]; ok {
-						m[k] = v
-					}
 
+			}
+		}
+	}
+
+	if len(exts) > 0 {
+		for k, v := range exts[0] {
+			fields[k] = v
+		}
+	}
+
+	return fields
+}
+func (module *dataModule) ViewFields(name string, keys []string, exts ...Params) Params {
+	fields := Params{}
+	if config, ok := module.views[name]; ok && config.Fields != nil {
+		//空数组一个也不返
+		if keys == nil {
+			for k, v := range config.Fields {
+				fields[k] = v
+			}
+		} else {
+			for _, k := range keys {
+				if v, ok := config.Fields[k]; ok {
+					fields[k] = v
+				}
+
+			}
+		}
+	}
+
+	if len(exts) > 0 {
+		for k, v := range exts[0] {
+			fields[k] = v
+		}
+	}
+
+	return fields
+}
+func (module *dataModule) ModelFields(name string, keys []string, exts ...Params) Params {
+	fields := Params{}
+	if config, ok := module.models[name]; ok && config.Fields != nil {
+		//空数组一个也不返
+		if keys == nil {
+			for k, v := range config.Fields {
+				fields[k] = v
+			}
+		} else {
+			for _, k := range keys {
+				if v, ok := config.Fields[k]; ok {
+					fields[k] = v
 				}
 			}
 		}
 	}
 
-	return m
-}
-func (module *dataModule) ViewFields(name string, keys []string, exts ...Map) Map {
-	m := Map{}
-	if config, ok := module.views[name]; ok {
-		if fields, ok := config["fields"].(Map); ok {
-			// if keys==nil || len(keys) == 0 {
-			//空数组一个也不返
-			if keys == nil {
-				for k, v := range fields {
-					m[k] = v
-				}
-			} else {
-				for _, k := range keys {
-					if v, ok := fields[k]; ok {
-						m[k] = v
-					}
-
-				}
-			}
+	if len(exts) > 0 {
+		for k, v := range exts[0] {
+			fields[k] = v
 		}
 	}
 
-	return m
+	return fields
 }
-func (module *dataModule) ModelFields(name string, keys []string, exts ...Map) Map {
-	m := Map{}
-	if config, ok := module.models[name]; ok {
-		if fields, ok := config["fields"].(Map); ok {
-			// if keys==nil || len(keys) == 0 {
-			//空数组一个也不返
-			if keys == nil {
-				for k, v := range fields {
-					m[k] = v
-				}
-			} else {
-				for _, k := range keys {
-					if v, ok := fields[k]; ok {
-						m[k] = v
-					}
-
-				}
-			}
-		}
-	}
-
-	return m
-}
-func (module *dataModule) Enum(name, field, key string) string {
-	enums := ark.Data.Enums(name, field)
+func (module *dataModule) Option(name, field, key string) string {
+	enums := ark.Data.Options(name, field)
 	if vv, ok := enums[key]; ok {
-		return fmt.Sprintf("%v", vv)
+		return vv
 	}
 	return key
 }
-func (module *dataModule) Enums(name, field string) Map {
+
+func (module *dataModule) Options(name, field string) Option {
 	if _, ok := module.tables[name]; ok {
-		return module.TableEnums(name, field)
+		return module.TableOptions(name, field)
 	} else if _, ok := module.views[name]; ok {
-		return module.ViewEnums(name, field)
+		return module.ViewOptions(name, field)
 	} else if _, ok := module.models[name]; ok {
-		return module.ModelEnums(name, field)
+		return module.ModelOptions(name, field)
 	} else {
-		return Map{}
+		return Option{}
 	}
 }
-func (module *dataModule) TableEnums(name, field string) Map {
-	m := Map{}
-
-	if config, ok := module.tables[name]; ok {
-		if fields, ok := config["fields"].(Map); ok {
-			if field, ok := fields[field].(Map); ok {
-				if enums, ok := field["enum"].(Map); ok {
-					for k, v := range enums {
-						m[k] = v
-					}
+func (module *dataModule) TableOptions(name, field string) Option {
+	options := Option{}
+	if config, ok := module.tables[name]; ok && config.Fields != nil {
+		if field, ok := config.Fields[field]; ok {
+			if field.Option != nil {
+				for k, v := range field.Option {
+					options[k] = v
 				}
 			}
 		}
 	}
-
-	return m
+	return options
 }
-func (module *dataModule) ViewEnums(name, field string) Map {
-	m := Map{}
-
-	if config, ok := module.views[name]; ok {
-		if fields, ok := config["fields"].(Map); ok {
-			if field, ok := fields[field].(Map); ok {
-				if enums, ok := field["enum"].(Map); ok {
-					for k, v := range enums {
-						m[k] = v
-					}
+func (module *dataModule) ViewOptions(name, field string) Option {
+	options := Option{}
+	if config, ok := module.views[name]; ok && config.Fields != nil {
+		if field, ok := config.Fields[field]; ok {
+			if field.Option != nil {
+				for k, v := range field.Option {
+					options[k] = v
 				}
 			}
 		}
 	}
-
-	return m
+	return options
 }
-func (module *dataModule) ModelEnums(name, field string) Map {
-	m := Map{}
-
-	if config, ok := module.models[name]; ok {
-		if fields, ok := config["fields"].(Map); ok {
-			if field, ok := fields[field].(Map); ok {
-				if enums, ok := field["enum"].(Map); ok {
-					for k, v := range enums {
-						m[k] = v
-					}
+func (module *dataModule) ModelOptions(name, field string) Option {
+	options := Option{}
+	if config, ok := module.models[name]; ok && config.Fields != nil {
+		if field, ok := config.Fields[field]; ok {
+			if field.Option != nil {
+				for k, v := range field.Option {
+					options[k] = v
 				}
 			}
 		}
 	}
-
-	return m
+	return options
 }
 
 //返回数据Base对象
@@ -726,18 +824,19 @@ func (module *dataModule) Serial(key string, start, step int64, cons ...string) 
 func (module *dataModule) newGroup(base string) *dataGroup {
 	return &dataGroup{module, base}
 }
-func (group *dataGroup) Table(name string, config Map) {
-	realName := fmt.Sprintf("%s.%s", group.base, name)
-	group.data.Table(realName, config)
-}
-func (group *dataGroup) View(name string, config Map) {
-	realName := fmt.Sprintf("%s.%s", group.base, name)
-	group.data.View(realName, config)
-}
-func (group *dataGroup) Model(name string, config Map) {
-	realName := fmt.Sprintf("%s.%s", group.base, name)
-	group.data.Model(realName, config)
-}
+
+// func (group *dataGroup) Table(name string, config Map) {
+// 	realName := fmt.Sprintf("%s.%s", group.base, name)
+// 	group.data.Table(realName, config)
+// }
+// func (group *dataGroup) View(name string, config Map) {
+// 	realName := fmt.Sprintf("%s.%s", group.base, name)
+// 	group.data.View(realName, config)
+// }
+// func (group *dataGroup) Model(name string, config Map) {
+// 	realName := fmt.Sprintf("%s.%s", group.base, name)
+// 	group.data.Model(realName, config)
+// }
 
 // func Data(names ...string) DataBase {
 // 	return ark.Data.Base(names...)
@@ -745,27 +844,31 @@ func (group *dataGroup) Model(name string, config Map) {
 func Base(name string) *dataGroup {
 	return ark.Data.newGroup(name)
 }
-func Table(name string, configs ...Map) Map {
-	return ark.Data.Table(name, configs...)
+
+func GetTable(name string) *Table {
+	return ark.Data.TableConfig(name)
 }
-func View(name string, configs ...Map) Map {
-	return ark.Data.View(name, configs...)
+func GetView(name string) *View {
+	return ark.Data.ViewConfig(name)
 }
-func Model(name string, configs ...Map) Map {
-	return ark.Data.Model(name, configs...)
+func GetModel(name string) *Model {
+	return ark.Data.ModelConfig(name)
 }
-func Field(name string, field string, exts ...Map) Map {
+
+func Field(name string, field string, exts ...bool) Param {
 	return ark.Data.Field(name, field, exts...)
 }
-func Fields(name string, keys []string, exts ...Map) Map {
+func Fields(name string, keys []string, exts ...Params) Params {
 	return ark.Data.Fields(name, keys, exts...)
 }
-func Enums(name string, field string) Map {
-	return ark.Data.Enums(name, field)
+func Options(name string, field string) Option {
+	return ark.Data.Options(name, field)
 }
-func Enum(name, field, key string) string {
-	return ark.Data.Enum(name, field, key)
-}
+
+// func Option(name, field, key string) string {
+// 	return ark.Data.Option(name, field, key)
+// }
+
 func ParseSQL(args ...Any) (string, []Any, string, error) {
 	return ark.Data.Parse(args...)
 }

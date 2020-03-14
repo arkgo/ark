@@ -117,6 +117,9 @@ func (module *viewModule) Driver(name string, driver ViewDriver, overrides ...bo
 // }
 
 func (module *viewModule) Helper(name string, config Helper, overrides ...bool) {
+	module.mutex.Lock()
+	defer module.mutex.Unlock()
+
 	override := true
 	if len(overrides) > 0 {
 		override = overrides[0]

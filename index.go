@@ -16,28 +16,28 @@ var (
 	Root  *httpSite
 )
 
-func Driver(name string, driver Any) {
-	switch drv := driver.(type) {
-	case LoggerDriver:
-		ark.Logger.Driver(name, drv)
-	case MutexDriver:
-		ark.Mutex.Driver(name, drv)
-	case BusDriver:
-		ark.Bus.Driver(name, drv)
-	case StoreDriver:
-		ark.Store.Driver(name, drv)
-	case SessionDriver:
-		ark.Session.Driver(name, drv)
-	case CacheDriver:
-		ark.Cache.Driver(name, drv)
-	case DataDriver:
-		ark.Data.Driver(name, drv)
-	case HttpDriver:
-		ark.Http.Driver(name, drv)
-	case ViewDriver:
-		ark.View.Driver(name, drv)
-	}
-}
+// func Driver(name string, driver Any) {
+// 	switch drv := driver.(type) {
+// 	case LoggerDriver:
+// 		ark.Logger.Driver(key, val)
+// 	case MutexDriver:
+// 		ark.Mutex.Driver(key, val)
+// 	case BusDriver:
+// 		ark.Bus.Driver(key, val)
+// 	case StoreDriver:
+// 		ark.Store.Driver(key, val)
+// 	case SessionDriver:
+// 		ark.Session.Driver(key, val)
+// 	case CacheDriver:
+// 		ark.Cache.Driver(key, val)
+// 	case DataDriver:
+// 		ark.Data.Driver(key, val)
+// 	case HttpDriver:
+// 		ark.Http.Driver(key, val)
+// 	case ViewDriver:
+// 		ark.View.Driver(key, val)
+// 	}
+// }
 
 // func Register(name string, data Any, overrides ...bool) {
 // 	switch config := data.(type) {
@@ -94,6 +94,26 @@ func Register(args ...Any) {
 	}
 
 	switch val := value.(type) {
+
+	case LoggerDriver:
+		ark.Logger.Driver(key, val)
+	case MutexDriver:
+		ark.Mutex.Driver(key, val)
+	case BusDriver:
+		ark.Bus.Driver(key, val)
+	case StoreDriver:
+		ark.Store.Driver(key, val)
+	case SessionDriver:
+		ark.Session.Driver(key, val)
+	case CacheDriver:
+		ark.Cache.Driver(key, val)
+	case DataDriver:
+		ark.Data.Driver(key, val)
+	case HttpDriver:
+		ark.Http.Driver(key, val)
+	case ViewDriver:
+		ark.View.Driver(key, val)
+
 	case State:
 		ark.Basic.State(key, val, override)
 	case Mime:
@@ -105,6 +125,15 @@ func Register(args ...Any) {
 	case Crypto:
 		ark.Basic.Crypto(key, val, override)
 
+	case Table:
+		ark.Data.Table(key, val, override)
+	case View:
+		ark.Data.View(key, val, override)
+	case Model:
+		ark.Data.Model(key, val, override)
+
+	case Router:
+		ark.Http.Router(key, val, override)
 	case Filter:
 		ark.Http.Filter(key, val, override)
 	case RequestFilter:

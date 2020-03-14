@@ -229,6 +229,21 @@ type (
 		Desc   string   `json:"desc"`
 		Action HttpFunc `json:"-"`
 	}
+
+	Routes map[string]Router
+	Router struct {
+		site    string   `json:"-"`
+		Uri     string   `json:"uri"`
+		Uris    []string `json:"uris"`
+		Name    string   `json:"name"`
+		Desc    string   `json:"desc"`
+		Setting Map      `json:"setting"`
+		Route   Routes   `json:"route"`
+		Action  HttpFunc `json:"-"`
+
+		Args Params `json:"args"`
+		Data Params `json:"data"`
+	}
 )
 
 func newHttp() *httpModule {
@@ -371,7 +386,128 @@ func (module *httpModule) exiting() {
 	}
 }
 
-func (module *httpModule) Router(name string, config Map, overrides ...bool) {
+// func (module *httpModule) Router(name string, config Map, overrides ...bool) {
+// 	override := true
+// 	if len(overrides) > 0 {
+// 		override = overrides[0]
+// 	}
+
+// 	names := strings.Split(name, ".")
+// 	if len(names) <= 1 {
+// 		name = "*." + name
+// 	}
+
+// 	//直接的时候直接拆分成目标格式
+// 	objects := make(map[string]Map)
+// 	if strings.HasPrefix(name, "*.") {
+// 		//全站点
+// 		for site, _ := range ark.Config.Site {
+// 			siteName := strings.Replace(name, "*", site, 1)
+// 			siteConfig := make(Map)
+
+// 			//复制配置
+// 			for k, v := range config {
+// 				siteConfig[k] = v
+// 			}
+// 			//站点名
+// 			siteConfig["site"] = site
+
+// 			//先记录下
+// 			objects[siteName] = siteConfig
+// 		}
+// 	} else {
+// 		if len(names) >= 2 {
+// 			config["site"] = names[0]
+// 		}
+// 		//单站点
+// 		objects[name] = config
+// 	}
+
+// 	//处理对方是单方法，还是多方法
+// 	routers := make(map[string]Map)
+// 	for routerName, routerConfig := range objects {
+
+// 		if routeConfig, ok := routerConfig["route"].(Map); ok {
+// 			//多method版本
+// 			for method, vvvv := range routeConfig {
+// 				if methodConfig, ok := vvvv.(Map); ok {
+
+// 					realName := fmt.Sprintf("%s.%s", routerName, method)
+// 					realConfig := Map{}
+
+// 					//复制全局的定义
+// 					for k, v := range routerConfig {
+// 						if k != "route" {
+// 							realConfig[k] = v
+// 						}
+// 					}
+
+// 					//复制子级的定义
+// 					//注册,args, auth, item等
+// 					for k, v := range methodConfig {
+// 						if lllMap, ok := v.(Map); ok && (k == "args" || k == "auth" || k == "item") {
+// 							if gggMap, ok := realConfig[k].(Map); ok {
+
+// 								newMap := Map{}
+// 								//复制全局
+// 								for gk, gv := range gggMap {
+// 									newMap[gk] = gv
+// 								}
+// 								//复制方法级
+// 								for lk, lv := range lllMap {
+// 									newMap[lk] = lv
+// 								}
+
+// 								realConfig[k] = newMap
+
+// 							} else {
+// 								realConfig[k] = v
+// 							}
+// 						} else {
+// 							realConfig[k] = v
+// 						}
+// 					}
+
+// 					//相关参数
+// 					realConfig["method"] = method
+
+// 					//加入列表
+// 					routers[realName] = realConfig
+// 				}
+// 			}
+
+// 		} else {
+
+// 			//单方法版本
+// 			realName := routerName
+// 			realConfig := Map{}
+
+// 			//复制定义
+// 			for k, v := range routerConfig {
+// 				realConfig[k] = v
+// 			}
+
+// 			//加入列表
+// 			routers[realName] = realConfig
+// 		}
+// 	}
+
+// 	//这里才是真的注册
+// 	for k, v := range routers {
+// 		if override {
+// 			module.routers[k] = v
+// 		} else {
+// 			if _, ok := module.routers[k]; ok == false {
+// 				module.routers[k] = v
+// 			}
+// 		}
+// 	}
+// }
+
+func (module *httpModule) Router(name string, config Router, overrides ...bool) {
+	module.mutex.Lock()
+	module.mutex.Unlock()
+
 	override := true
 	if len(overrides) > 0 {
 		override = overrides[0]
@@ -383,26 +519,21 @@ func (module *httpModule) Router(name string, config Map, overrides ...bool) {
 	}
 
 	//直接的时候直接拆分成目标格式
-	objects := make(map[string]Map)
+	objects := make(map[string]Router)
 	if strings.HasPrefix(name, "*.") {
 		//全站点
 		for site, _ := range ark.Config.Site {
 			siteName := strings.Replace(name, "*", site, 1)
-			siteConfig := make(Map)
+			siteConfig := config //直接复制一份
 
-			//复制配置
-			for k, v := range config {
-				siteConfig[k] = v
-			}
-			//站点名
-			siteConfig["site"] = site
+			siteConfig.site = site
 
 			//先记录下
 			objects[siteName] = siteConfig
 		}
 	} else {
 		if len(names) >= 2 {
-			config["site"] = names[0]
+			config.site = names[0]
 		}
 		//单站点
 		objects[name] = config
@@ -412,9 +543,9 @@ func (module *httpModule) Router(name string, config Map, overrides ...bool) {
 	routers := make(map[string]Map)
 	for routerName, routerConfig := range objects {
 
-		if routeConfig, ok := routerConfig["route"].(Map); ok {
+		if routerConfig.Route != nil {
 			//多method版本
-			for method, vvvv := range routeConfig {
+			for method, vvvv := range routerConfig.Route {
 				if methodConfig, ok := vvvv.(Map); ok {
 
 					realName := fmt.Sprintf("%s.%s", routerName, method)
@@ -488,6 +619,7 @@ func (module *httpModule) Router(name string, config Map, overrides ...bool) {
 		}
 	}
 }
+
 func (module *httpModule) initRouterActions() {
 	for name, config := range module.routers {
 		if _, ok := module.routerActions[name]; ok == false {
@@ -539,6 +671,9 @@ func (module *httpModule) Filter(name string, config Filter, overrides ...bool) 
 }
 
 func (module *httpModule) RequestFilter(name string, config RequestFilter, overrides ...bool) {
+	module.mutex.Lock()
+	defer module.mutex.Unlock()
+
 	override := true
 	if len(overrides) > 0 {
 		override = overrides[0]
@@ -582,6 +717,9 @@ func (module *httpModule) RequestFilter(name string, config RequestFilter, overr
 }
 
 func (module *httpModule) ExecuteFilter(name string, config ExecuteFilter, overrides ...bool) {
+	module.mutex.Lock()
+	defer module.mutex.Unlock()
+
 	override := true
 	if len(overrides) > 0 {
 		override = overrides[0]
@@ -625,6 +763,9 @@ func (module *httpModule) ExecuteFilter(name string, config ExecuteFilter, overr
 }
 
 func (module *httpModule) ResponseFilter(name string, config ResponseFilter, overrides ...bool) {
+	module.mutex.Lock()
+	defer module.mutex.Unlock()
+
 	override := true
 	if len(overrides) > 0 {
 		override = overrides[0]
@@ -712,6 +853,9 @@ func (module *httpModule) Handler(name string, config Handler, overrides ...bool
 }
 
 func (module *httpModule) FoundHandler(name string, config FoundHandler, overrides ...bool) {
+	module.mutex.Lock()
+	defer module.mutex.Unlock()
+
 	override := true
 	if len(overrides) > 0 {
 		override = overrides[0]
@@ -755,6 +899,9 @@ func (module *httpModule) FoundHandler(name string, config FoundHandler, overrid
 }
 
 func (module *httpModule) ErrorHandler(name string, config ErrorHandler, overrides ...bool) {
+	module.mutex.Lock()
+	defer module.mutex.Unlock()
+
 	override := true
 	if len(overrides) > 0 {
 		override = overrides[0]
@@ -798,6 +945,9 @@ func (module *httpModule) ErrorHandler(name string, config ErrorHandler, overrid
 }
 
 func (module *httpModule) FailedHandler(name string, config FailedHandler, overrides ...bool) {
+	module.mutex.Lock()
+	defer module.mutex.Unlock()
+
 	override := true
 	if len(overrides) > 0 {
 		override = overrides[0]
@@ -841,6 +991,9 @@ func (module *httpModule) FailedHandler(name string, config FailedHandler, overr
 }
 
 func (module *httpModule) DeniedHandler(name string, config DeniedHandler, overrides ...bool) {
+	module.mutex.Lock()
+	defer module.mutex.Unlock()
+
 	override := true
 	if len(overrides) > 0 {
 		override = overrides[0]
@@ -1463,20 +1616,20 @@ func (module *httpModule) viewHelpers(ctx *Http) Map {
 		"string": func(key string, args ...Any) string {
 			return ctx.String(key, args...)
 		},
-		"enum": func(name, field string, v Any) string {
+		"option": func(name, field string, v Any) string {
 			value := fmt.Sprintf("%v", v)
 			//多语言支持
 			//key=enum.name.file.value
-			langkey := fmt.Sprintf("enum.%s.%s.%s", name, field, value)
+			langkey := fmt.Sprintf("option_%s_%s_%s", name, field, value)
 			langval := ctx.String(langkey)
 			if langkey != langval {
 				return langval
 			} else {
-				enums := Enums(name, field)
-				if vv, ok := enums[value].(string); ok {
-					return vv
-				}
-				return value
+				return ark.Data.Option(name, field, value)
+				// if vv, ok := enums[value].(string); ok {
+				// 	return vv
+				// }
+				// return value
 			}
 		},
 	}
