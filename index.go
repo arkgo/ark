@@ -15,21 +15,6 @@ var (
 	Root  *httpSite
 )
 
-func Precision(f float64, prec int, rounds ...bool) float64 {
-	round := false
-	if len(rounds) > 0 {
-		round = rounds[0]
-	}
-
-	pow10_n := math.Pow10(prec)
-	if round {
-		//四舍五入
-		return math.Trunc((f+0.5/pow10_n)*pow10_n) / pow10_n
-	}
-	//默认
-	return math.Trunc((f)*pow10_n) / pow10_n
-}
-
 // Register 注册中心
 func Register(args ...Any) {
 	var key string = ""
@@ -125,4 +110,35 @@ func Register(args ...Any) {
 		ark.View.Helper(key, val, override)
 	}
 
+}
+
+func Define(tttt string, require bool, name string, extends ...Map) Param {
+	config := Param{
+		Type: tttt, Require: require, Name: name,
+	}
+
+	if len(extends) > 0 {
+		extend := extends[0]
+
+		if vv, ok := extend["default"]; ok {
+			config.Default = vv
+		}
+	}
+
+	return config
+}
+
+func Precision(f float64, prec int, rounds ...bool) float64 {
+	round := false
+	if len(rounds) > 0 {
+		round = rounds[0]
+	}
+
+	pow10_n := math.Pow10(prec)
+	if round {
+		//四舍五入
+		return math.Trunc((f+0.5/pow10_n)*pow10_n) / pow10_n
+	}
+	//默认
+	return math.Trunc((f)*pow10_n) / pow10_n
 }
