@@ -79,7 +79,8 @@ func (url *httpUrl) Route(name string, values ...Map) string {
 
 	nameget := fmt.Sprintf("%s.get", name)
 	namepost := fmt.Sprintf("%s.post", name)
-	var config Map
+
+	var config Router
 
 	//搜索定义
 	if vv, ok := ark.Http.routers[name]; ok {
@@ -93,22 +94,24 @@ func (url *httpUrl) Route(name string, values ...Map) string {
 		return name
 	}
 
-	if config["socket"] != nil {
+	if config.Socket {
 		options["[socket]"] = true
 	}
 
 	uri := ""
-	if vv, ok := config["uri"].(string); ok {
-		uri = vv
-	} else if vv, ok := config["uris"].([]string); ok && len(vv) > 0 {
-		uri = vv[0]
+	if config.Uri != "" {
+		uri = config.Uri
+	} else if config.Uris != nil && len(config.Uris) > 0 {
+		uri = config.Uris[0]
 	} else {
 		return "[no uri here]"
 	}
 
-	argsConfig := Map{}
-	if c, ok := config["args"].(Map); ok {
-		argsConfig = c
+	argsConfig := Params{}
+	if config.Args != nil {
+		for k, v := range config.Args {
+			argsConfig[k] = v
+		}
 	}
 
 	//选项处理

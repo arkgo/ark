@@ -161,9 +161,6 @@ func newBasic() *basicModule {
 // }
 
 func (module *basicModule) State(name string, config State, overrides ...bool) {
-	module.mutex.Lock()
-	defer module.mutex.Unlock()
-
 	override := true
 	if len(overrides) > 0 {
 		override = overrides[0]
@@ -178,6 +175,7 @@ func (module *basicModule) State(name string, config State, overrides ...bool) {
 	}
 
 	for _, key := range alias {
+		module.mutex.Lock()
 		if override {
 			module.states[key] = config
 		} else {
@@ -185,6 +183,8 @@ func (module *basicModule) State(name string, config State, overrides ...bool) {
 				module.states[key] = config
 			}
 		}
+		module.mutex.Unlock()
+
 		//自动注册默认的语言字串
 		if config.String != "" {
 			module.Lang(DEFAULT, map[string]string{key: config.String})

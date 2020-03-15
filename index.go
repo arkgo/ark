@@ -132,6 +132,9 @@ func Register(args ...Any) {
 	case Model:
 		ark.Data.Model(key, val, override)
 
+	case Method:
+		ark.Service.Method(key, val, override)
+
 	case Router:
 		ark.Http.Router(key, val, override)
 	case Filter:
@@ -160,6 +163,18 @@ func (site *httpSite) Register(name string, value Any, overrides ...bool) {
 	key := fmt.Sprintf("%s.%s", site.name, name)
 
 	switch val := value.(type) {
+	case Router:
+		if site.root != "" {
+			if val.Uri != "" {
+				val.Uri = site.root + val.Uri
+			}
+			if val.Uris != nil {
+				for i, uri := range val.Uris {
+					val.Uris[i] = site.root + uri
+				}
+			}
+		}
+		ark.Http.Router(key, val, overrides...)
 	case Filter:
 		ark.Http.Filter(key, val, overrides...)
 	case RequestFilter:

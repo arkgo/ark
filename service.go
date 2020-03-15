@@ -11,7 +11,7 @@ import (
 type (
 	serviceModule struct {
 		mutex   sync.Mutex
-		methods map[string]Map
+		methods map[string]Method
 	}
 
 	serviceLibrary struct {
@@ -28,51 +28,65 @@ type (
 	Service struct {
 		ctx     context
 		Name    string
-		Config  Map
+		Config  Method
 		Setting Map
 		Value   Map
 		Args    Map
+	}
+
+	Method struct {
+		Name     string   `json:"name"`
+		Desc     string   `json:"desc"`
+		Alias    []string `json:"alias"`
+		Nullable bool     `json:"nullable"`
+		Args     Params   `json:"args"`
+		Data     Params   `json:"data"`
+		Setting  Map      `json:"setting"`
+		Action   Any      `json:"-"`
 	}
 )
 
 func newService() *serviceModule {
 	return &serviceModule{
-		methods: make(map[string]Map, 0),
+		methods: make(map[string]Method, 0),
 	}
 }
 
 //注册方法
-func (module *serviceModule) Method(name string, config Map, overrides ...bool) {
+func (module *serviceModule) Method(name string, config Method, overrides ...bool) {
 	module.mutex.Lock()
 	defer module.mutex.Unlock()
-
-	if config == nil {
-		panic("[服务]配置不可为空")
-	}
 
 	override := true
 	if len(overrides) > 0 {
 		override = overrides[0]
 	}
 
-	if override {
-		module.methods[name] = config
-	} else {
-		if module.methods[name] == nil {
-			module.methods[name] = config
+	alias := make([]string, 0)
+	if name != "" {
+		alias = append(alias, name)
+	}
+	if config.Alias != nil {
+		alias = append(alias, config.Alias...)
+	}
+
+	for _, key := range alias {
+		if override {
+			module.methods[key] = config
+		} else {
+			if _, ok := module.methods[key]; ok == false {
+				module.methods[key] = config
+			}
 		}
 	}
 }
 
 func (module *serviceModule) Invoke(ctx context, name string, value Map, settings ...Map) (Map, *Res) {
-	config := make(Map)
-	if vv, ok := module.methods[name]; ok == false {
+	if _, ok := module.methods[name]; ok == false {
 		return nil, Fail
-	} else {
-		for k, v := range vv {
-			config[k] = v
-		}
 	}
+
+	config := module.methods[name]
 
 	var setting Map
 	if len(settings) > 0 {
@@ -90,14 +104,9 @@ func (module *serviceModule) Invoke(ctx context, name string, value Map, setting
 		setting = make(Map)
 	}
 
-	argn := false
-	if v, ok := config["argn"].(bool); ok {
-		argn = v
-	}
-
 	args := Map{}
-	if arging, ok := config["args"].(Map); ok {
-		res := ark.Basic.Mapping(arging, value, args, argn, false, ctx)
+	if config.Args != nil {
+		res := ark.Basic.Mapping(config.Args, value, args, config.Nullable, false, ctx)
 		if res != nil {
 			return nil, res
 		}
@@ -111,7 +120,7 @@ func (module *serviceModule) Invoke(ctx context, name string, value Map, setting
 	data := Map{}
 	var result *Res
 
-	switch ff := config["action"].(type) {
+	switch ff := config.Action.(type) {
 	case func(*Service):
 		ff(service)
 	case func(*Service) *Res:
@@ -141,14 +150,15 @@ func (module *serviceModule) Invoke(ctx context, name string, value Map, setting
 	}
 
 	//参数解析
-	if dating, ok := config["data"].(Map); ok {
+	if config.Data != nil {
 		out := Map{}
-		err := ark.Basic.Mapping(dating, data, out, false, false, ctx)
+		err := ark.Basic.Mapping(config.Data, data, out, false, false, ctx)
 		if err == nil {
 			return out, result
 		}
 	}
 
+	//参数如果解析失败，就原版返回
 	return data, result
 }
 
@@ -168,7 +178,7 @@ func (module *serviceModule) Logic(ctx context, name string, settings ...Map) *s
 func (lib *serviceLibrary) Name() string {
 	return lib.name
 }
-func (lib *serviceLibrary) Method(name string, config Map, overrides ...bool) {
+func (lib *serviceLibrary) Register(name string, config Method, overrides ...bool) {
 	realName := fmt.Sprintf("%s.%s", lib.name, name)
 	lib.module.Method(realName, config, overrides...)
 }
@@ -219,9 +229,9 @@ func (logic *serviceLogic) Invoke(name string, args ...Map) Map {
 
 //-------------------------------------------------------------------------------------------------------
 
-func Method(name string, config Map, overrides ...bool) {
-	ark.Service.Method(name, config, overrides...)
-}
+// func Method(name string, config Map, overrides ...bool) {
+// 	ark.Service.Method(name, config, overrides...)
+// }
 
 func Library(name string) *serviceLibrary {
 	return ark.Service.Library(name)

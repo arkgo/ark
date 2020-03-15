@@ -49,7 +49,8 @@ type (
 
 		Id         string
 		Name       string
-		Config     Map
+		Config     Router
+		Setting    Map
 		siteConfig SiteConfig
 
 		Site   string //站点key
@@ -186,27 +187,28 @@ func (ctx *Http) clear() {
 func (ctx *Http) next(nexts ...HttpFunc) {
 	ctx.nexts = append(ctx.nexts, nexts...)
 }
-func (ctx *Http) funcing(key string) []HttpFunc {
-	funcs := []HttpFunc{}
 
-	if action, ok := ctx.Config[key]; ok && action != nil {
-		switch actions := action.(type) {
-		case func(*Http):
-			funcs = append(funcs, actions)
-		case []func(*Http):
-			for _, action := range actions {
-				funcs = append(funcs, action)
-			}
-		case HttpFunc:
-			funcs = append(funcs, actions)
-		case []HttpFunc:
-			funcs = append(funcs, actions...)
-		default:
-		}
-	}
+// func (ctx *Http) funcing(key string) []HttpFunc {
+// 	funcs := []HttpFunc{}
 
-	return funcs
-}
+// 	if action, ok := ctx.Config[key]; ok && action != nil {
+// 		switch actions := action.(type) {
+// 		case func(*Http):
+// 			funcs = append(funcs, actions)
+// 		case []func(*Http):
+// 			for _, action := range actions {
+// 				funcs = append(funcs, action)
+// 			}
+// 		case HttpFunc:
+// 			funcs = append(funcs, actions)
+// 		case []HttpFunc:
+// 			funcs = append(funcs, actions...)
+// 		default:
+// 		}
+// 	}
+
+// 	return funcs
+// }
 func (ctx *Http) Next() {
 	if len(ctx.nexts) > ctx.index {
 		next := ctx.nexts[ctx.index]
@@ -227,12 +229,12 @@ func (ctx *Http) sessional(defs ...bool) bool {
 		sessional = defs[0]
 	}
 
-	if vv, ok := ctx.Config["session"].(bool); ok {
+	if vv, ok := ctx.Setting["session"].(bool); ok {
 		sessional = vv
 	}
 
 	//如果有auth节，强制使用session
-	if _, ok := ctx.Config["auth"]; ok {
+	if ctx.Config.Auth != nil {
 		sessional = true
 	}
 
@@ -277,10 +279,10 @@ func (ctx *Http) clientHandler() *Res {
 	}
 
 	//个别路由通行
-	if vv, ok := ctx.Config["passport"].(bool); ok && vv {
+	if vv, ok := ctx.Setting["passport"].(bool); ok && vv {
 		checking = false
 	}
-	if vv, ok := ctx.Config["validate"].(bool); ok && vv == false {
+	if vv, ok := ctx.Setting["validate"].(bool); ok && vv == false {
 		checking = false
 	}
 
@@ -297,8 +299,8 @@ func (ctx *Http) clientHandler() *Res {
 		}
 	}
 
-	args := Map{
-		"client": Map{"type": "string", "must": true, "decode": coding},
+	args := Params{
+		"client": Param{Type: "string", Require: true, Decode: coding},
 	}
 	data := Map{
 		"client": cs,
@@ -765,15 +767,9 @@ func (ctx *Http) formHandler() *Res {
 //处理参数
 func (ctx *Http) argsHandler() *Res {
 
-	//argn表示参数都可为空
-	argn := false
-	if v, ok := ctx.Config["argn"].(bool); ok {
-		argn = v
-	}
-
-	if argsConfig, ok := ctx.Config["args"].(Map); ok {
+	if ctx.Config.Args != nil {
 		argsValue := Map{}
-		err := ark.Basic.Mapping(argsConfig, ctx.Value, argsValue, argn, false, ctx)
+		err := ark.Basic.Mapping(ctx.Config.Args, ctx.Value, argsValue, ctx.Config.Nullable, false, ctx)
 		if err != nil {
 			return err
 		}
@@ -789,10 +785,10 @@ func (ctx *Http) argsHandler() *Res {
 //处理认证
 func (ctx *Http) authHandler() *Res {
 
-	if auths, ok := ctx.Config["auth"].(Map); ok {
+	if ctx.Config.Auth != nil {
 		saveMap := Map{}
 
-		for authKey, authMap := range auths {
+		for authKey, authMap := range ctx.Config.Auth {
 
 			if _, ok := authMap.(Map); ok == false {
 				continue
@@ -892,10 +888,10 @@ func (ctx *Http) authHandler() *Res {
 //Entity实体处理
 func (ctx *Http) itemHandler() *Res {
 
-	if cfg, ok := ctx.Config["item"].(Map); ok {
+	if ctx.Config.Item != nil {
 		saveMap := Map{}
 
-		for itemKey, v := range cfg {
+		for itemKey, v := range ctx.Config.Item {
 			if config, ok := v.(Map); ok {
 
 				//是否必须

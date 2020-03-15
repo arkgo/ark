@@ -137,7 +137,7 @@ type (
 		mutex   sync.Mutex
 		drivers map[string]HttpDriver
 
-		routers       map[string]Map
+		routers       map[string]Router
 		routerActions map[string][]HttpFunc
 
 		//拦截器
@@ -230,19 +230,31 @@ type (
 		Action HttpFunc `json:"-"`
 	}
 
-	Routes map[string]Router
-	Router struct {
-		site    string   `json:"-"`
-		Uri     string   `json:"uri"`
-		Uris    []string `json:"uris"`
-		Name    string   `json:"name"`
-		Desc    string   `json:"desc"`
-		Setting Map      `json:"setting"`
-		Route   Routes   `json:"route"`
-		Action  HttpFunc `json:"-"`
+	Routing map[string]Router
+	Router  struct {
+		site     string   `json:"-"`
+		Uri      string   `json:"uri"`
+		Uris     []string `json:"uris"`
+		Name     string   `json:"name"`
+		Desc     string   `json:"desc"`
+		Method   string   `json:"method"`
+		Nullable bool     `json:"nullable"`
+		Socket   bool     `json:"socket"`
+		Setting  Map      `json:"setting"`
 
+		Auth Map    `json:"auth"`
+		Item Map    `json:"item"`
 		Args Params `json:"args"`
 		Data Params `json:"data"`
+
+		Routing Routing    `json:"-"`
+		Action  HttpFunc   `json:"-"`
+		Actions []HttpFunc `json:"-"`
+
+		Found  HttpFunc `json:"-"`
+		Error  HttpFunc `json:"-"`
+		Failed HttpFunc `json:"-"`
+		Denied HttpFunc `json:"-"`
 	}
 )
 
@@ -250,7 +262,7 @@ func newHttp() *httpModule {
 	return &httpModule{
 		drivers: make(map[string]HttpDriver),
 
-		routers:       make(map[string]Map),
+		routers:       make(map[string]Router),
 		routerActions: make(map[string][]HttpFunc),
 
 		requestFilters:  make(map[string]RequestFilter),
@@ -339,31 +351,26 @@ func (module *httpModule) initing() {
 	module.connect = connect
 }
 
-func (module *httpModule) registering(config Map) HttpRegister {
+func (module *httpModule) registering(config Router) HttpRegister {
 
 	//Uris
 	uris := []string{}
-	if vv, ok := config["uri"].(string); ok && vv != "" {
-		uris = append(uris, vv)
+	if config.Uri != "" {
+		uris = append(uris, config.Uri)
 	}
-	if vv, ok := config["uris"].([]string); ok {
-		uris = append(uris, vv...)
+	if config.Uris != nil {
+		uris = append(uris, config.Uris...)
 	}
+
 	//方法
 	methods := []string{}
-	if vv, ok := config["method"].(string); ok && vv != "" {
-		methods = append(methods, vv)
-	}
-	if vv, ok := config["methods"].([]string); ok {
-		methods = append(methods, vv...)
+	if config.Method != "" {
+		methods = append(methods, config.Method)
 	}
 
-	site := ""
-	if vv, ok := config["site"].(string); ok {
-		site = vv
-	}
+	site := config.site
 
-	regis := HttpRegister{Site: site, Uris: uris, Methods: methods}
+	regis := HttpRegister{Site: site, Uris: config.Uris, Methods: methods}
 
 	if cfg, ok := ark.Config.Site[site]; ok {
 		regis.Hosts = cfg.Hosts
@@ -540,81 +547,111 @@ func (module *httpModule) Router(name string, config Router, overrides ...bool) 
 	}
 
 	//处理对方是单方法，还是多方法
-	routers := make(map[string]Map)
+	routers := make(map[string]Router)
 	for routerName, routerConfig := range objects {
 
-		if routerConfig.Route != nil {
+		if routerConfig.Routing != nil {
 			//多method版本
-			for method, vvvv := range routerConfig.Route {
-				if methodConfig, ok := vvvv.(Map); ok {
+			for method, methodConfig := range routerConfig.Routing {
+				realName := fmt.Sprintf("%s.%s", routerName, method)
+				realConfig := routerConfig //从顶级复制
 
-					realName := fmt.Sprintf("%s.%s", routerName, method)
-					realConfig := Map{}
-
-					//复制全局的定义
-					for k, v := range routerConfig {
-						if k != "route" {
-							realConfig[k] = v
-						}
-					}
-
-					//复制子级的定义
-					//注册,args, auth, item等
-					for k, v := range methodConfig {
-						if lllMap, ok := v.(Map); ok && (k == "args" || k == "auth" || k == "item") {
-							if gggMap, ok := realConfig[k].(Map); ok {
-
-								newMap := Map{}
-								//复制全局
-								for gk, gv := range gggMap {
-									newMap[gk] = gv
-								}
-								//复制方法级
-								for lk, lv := range lllMap {
-									newMap[lk] = lv
-								}
-
-								realConfig[k] = newMap
-
-							} else {
-								realConfig[k] = v
-							}
-						} else {
-							realConfig[k] = v
-						}
-					}
-
-					//相关参数
-					realConfig["method"] = method
-
-					//加入列表
-					routers[realName] = realConfig
+				//复制子级的定义
+				if methodConfig.Name != "" {
+					realConfig.Name = methodConfig.Name
 				}
+				if methodConfig.Desc != "" {
+					realConfig.Desc = methodConfig.Desc
+				}
+
+				//复制设置
+				if methodConfig.Setting != nil {
+					if realConfig.Setting == nil {
+						realConfig.Setting = make(Map)
+					}
+					for k, v := range methodConfig.Setting {
+						realConfig.Setting[k] = v
+					}
+				}
+
+				//复制args
+				if methodConfig.Args != nil {
+					if realConfig.Args == nil {
+						realConfig.Args = Params{}
+					}
+					for k, v := range methodConfig.Args {
+						realConfig.Args[k] = v
+					}
+				}
+
+				//复制data
+				if methodConfig.Data != nil {
+					if realConfig.Data == nil {
+						realConfig.Data = Params{}
+					}
+					for k, v := range methodConfig.Data {
+						realConfig.Data[k] = v
+					}
+				}
+				//复制auth
+				//待优化：是否使用专用类型
+				if methodConfig.Auth != nil {
+					if realConfig.Auth == nil {
+						realConfig.Auth = Map{}
+					}
+					for k, v := range methodConfig.Auth {
+						realConfig.Auth[k] = v
+					}
+				}
+				//复制item
+				//待优化：是否使用专用类型
+				if methodConfig.Item != nil {
+					if realConfig.Item == nil {
+						realConfig.Item = Map{}
+					}
+					for k, v := range methodConfig.Item {
+						realConfig.Item[k] = v
+					}
+				}
+
+				//相关参数
+				realConfig.Method = method
+
+				//加入列表
+				routers[realName] = realConfig
 			}
 
 		} else {
-
 			//单方法版本
-			realName := routerName
-			realConfig := Map{}
-
-			//复制定义
-			for k, v := range routerConfig {
-				realConfig[k] = v
-			}
-
-			//加入列表
-			routers[realName] = realConfig
+			routers[routerName] = routerConfig
 		}
 	}
 
 	//这里才是真的注册
-	for k, v := range routers {
+	for key, val := range routers {
+		//一些默认的处理
+
+		//复制uri到uris，默认使用uris
+		if val.Uris == nil {
+			val.Uris = make([]string, 1)
+			val.Uris = append(val.Uris, val.Uri)
+			val.Uri = ""
+		}
+		//复制action
+		if val.Actions == nil {
+			val.Actions = make([]HttpFunc, 1)
+			val.Actions = append(val.Actions, val.Action)
+			val.Action = nil
+		}
+
+		//这里全局置空
+		val.Routing = nil
+
 		if override {
-			module.routers[k] = v
+			module.routers[key] = val
 		} else {
-			if _, ok := module.routers[k]; ok == false {
-				module.routers[k] = v
+			if _, ok := module.routers[key]; ok == false {
+				module.routers[key] = val
 			}
 		}
 	}
@@ -625,34 +662,25 @@ func (module *httpModule) initRouterActions() {
 		if _, ok := module.routerActions[name]; ok == false {
 			module.routerActions[name] = make([]HttpFunc, 0)
 		}
-		switch v := config["action"].(type) {
-		case func(*Http):
-			module.routerActions[name] = append(module.routerActions[name], v)
-		case []func(*Http):
-			for _, vv := range v {
-				module.routerActions[name] = append(module.routerActions[name], vv)
-			}
-		case HttpFunc:
-			module.routerActions[name] = append(module.routerActions[name], v)
-		case []HttpFunc:
-			module.routerActions[name] = append(module.routerActions[name], v...)
+
+		if config.Action != nil {
+			module.routerActions[name] = append(module.routerActions[name], config.Action)
+		}
+		if config.Actions != nil {
+			module.routerActions[name] = append(module.routerActions[name], config.Actions...)
 		}
 	}
 }
-func (module *httpModule) Routers(sites ...string) map[string]Map {
+func (module *httpModule) Routers(sites ...string) map[string]Router {
 	prefix := ""
 	if len(sites) > 0 {
 		prefix = sites[0] + "."
 	}
 
-	routers := make(map[string]Map)
+	routers := make(map[string]Router)
 	for name, config := range module.routers {
 		if prefix == "" || strings.HasPrefix(name, prefix) {
-			mmm := Map{} //为了配置安全，复制数据
-			for k, v := range config {
-				mmm[k] = v
-			}
-			routers[name] = mmm
+			routers[name] = config
 		}
 	}
 
@@ -1099,7 +1127,7 @@ func (module *httpModule) request(ctx *Http) {
 	//请求id
 	ctx.Id = ctx.Cookie(ctx.siteConfig.Cookie)
 	if ctx.Id == "" {
-		ctx.Id = Unique()
+		ctx.Id = ark.Codec.Unique()
 		ctx.Cookie(ctx.siteConfig.Cookie, ctx.Id)
 		ctx.Session("$last", now.Unix())
 	} else {
@@ -1124,7 +1152,7 @@ func (module *httpModule) request(ctx *Http) {
 	}
 
 	//404么
-	if ctx.Name == "" || ctx.Config == nil {
+	if ctx.Name == "" {
 
 		//路由不存在， 找静态文件
 
@@ -1422,16 +1450,16 @@ func (module *httpModule) bodyApi(ctx *Http, body httpApiBody) {
 	if body.data != nil {
 
 		crypto := ctx.siteConfig.Crypto
-		if vv, ok := ctx.Config["crypto"].(bool); ok && vv == false {
+		if vv, ok := ctx.Setting["crypto"].(bool); ok && vv == false {
 			crypto = ""
 		}
-		if vv, ok := ctx.Config["plain"].(bool); ok && vv {
+		if vv, ok := ctx.Setting["plain"].(bool); ok && vv {
 			crypto = ""
 		}
 
-		tempConfig := Map{
-			"data": Map{
-				"type": "json", "must": true, "encode": crypto,
+		tempConfig := Params{
+			"data": Param{
+				Type: "json", Require: true, Encode: crypto,
 			},
 		}
 		tempData := Map{
@@ -1439,11 +1467,11 @@ func (module *httpModule) bodyApi(ctx *Http, body httpApiBody) {
 		}
 
 		//有自定义返回数据类型
-		if vv, ok := ctx.Config["data"].(Map); ok {
-			tempConfig = Map{
-				"data": Map{
-					"type": "json", "must": true, "encode": crypto,
-					"json": vv,
+		if ctx.Config.Data != nil {
+			tempConfig = Params{
+				"data": Param{
+					Type: "json", Require: true, Encode: crypto,
+					Children: ctx.Config.Data,
 				},
 			}
 		}
@@ -1689,8 +1717,10 @@ func (module *httpModule) found(ctx *Http) {
 	ctx.Code = http.StatusNotFound
 
 	//如果有自定义的错误处理，加入调用列表
-	funcs := ctx.funcing("found")
-	ctx.next(funcs...)
+	// funcs := ctx.funcing("found")
+	if ctx.Config.Found != nil {
+		ctx.next(ctx.Config.Found)
+	}
 
 	//把处理器加入调用列表
 	if funcs, ok := module.foundActions[ctx.Site]; ok {
@@ -1722,8 +1752,10 @@ func (module *httpModule) error(ctx *Http) {
 	ctx.clear()
 
 	//如果有自定义的错误处理，加入调用列表
-	funcs := ctx.funcing("error")
-	ctx.next(funcs...)
+	// funcs := ctx.funcing("error")
+	if ctx.Config.Error != nil {
+		ctx.next(ctx.Config.Error)
+	}
 
 	//把错误处理器加入调用列表
 	if funcs, ok := module.errorActions[ctx.Site]; ok {
@@ -1766,8 +1798,11 @@ func (module *httpModule) failed(ctx *Http) {
 	ctx.clear()
 
 	//如果有自定义的失败处理，加入调用列表
-	funcs := ctx.funcing("failed")
-	ctx.next(funcs...)
+	// funcs := ctx.funcing("failed")
+	// ctx.next(funcs...)
+	if ctx.Config.Failed != nil {
+		ctx.next(ctx.Config.Failed)
+	}
 
 	//把失败处理器加入调用列表
 	if funcs, ok := module.failedActions[ctx.Site]; ok {
@@ -1798,8 +1833,11 @@ func (module *httpModule) denied(ctx *Http) {
 	ctx.clear()
 
 	//如果有自定义的失败处理，加入调用列表
-	funcs := ctx.funcing("denied")
-	ctx.next(funcs...)
+	// funcs := ctx.funcing("denied")
+	// ctx.next(funcs...)
+	if ctx.Config.Denied != nil {
+		ctx.next(ctx.Config.Denied)
+	}
 
 	//把失败处理器加入调用列表
 	if funcs, ok := module.deniedActions[ctx.Site]; ok {
@@ -1839,20 +1877,21 @@ func (site *httpSite) Route(name string, args ...Map) string {
 	realName := fmt.Sprintf("%s.%s", site.name, name)
 	return ark.Http.url.Route(realName, args...)
 }
-func (site *httpSite) Router(name string, config Map, overrides ...bool) {
-	realName := fmt.Sprintf("%s.%s", site.name, name)
-	if site.root != "" {
-		if uri, ok := config["uri"].(string); ok {
-			config["uri"] = site.root + uri
-		} else if uris, ok := config["uris"].([]string); ok {
-			for i, uri := range uris {
-				uris[i] = site.root + uri
-			}
-			config["uris"] = uris
-		}
-	}
-	site.module.Router(realName, config, overrides...)
-}
+
+// func (site *httpSite) Router(name string, config Map, overrides ...bool) {
+// 	realName := fmt.Sprintf("%s.%s", site.name, name)
+// 	if site.root != "" {
+// 		if uri, ok := config["uri"].(string); ok {
+// 			config["uri"] = site.root + uri
+// 		} else if uris, ok := config["uris"].([]string); ok {
+// 			for i, uri := range uris {
+// 				uris[i] = site.root + uri
+// 			}
+// 			config["uris"] = uris
+// 		}
+// 	}
+// 	site.module.Router(realName, config, overrides...)
+// }
 
 // func (site *httpSite) Filter(name string, config Map, overrides ...bool) {
 // 	realName := fmt.Sprintf("%s.%s", site.name, name)
@@ -1914,6 +1953,6 @@ func Site(name string, roots ...string) *httpSite {
 func Route(name string, args ...Map) string {
 	return ark.Http.url.Route(name, args...)
 }
-func Routers(sites ...string) map[string]Map {
+func Routers(sites ...string) map[string]Router {
 	return ark.Http.Routers(sites...)
 }
