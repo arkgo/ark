@@ -242,8 +242,8 @@ type (
 		Socket   bool     `json:"socket"`
 		Setting  Map      `json:"setting"`
 
-		Auth Map    `json:"auth"`
-		Item Map    `json:"item"`
+		Auth Auth   `json:"auth"`
+		Item Item   `json:"item"`
 		Args Params `json:"args"`
 		Data Params `json:"data"`
 
@@ -255,6 +255,29 @@ type (
 		Error  HttpFunc `json:"-"`
 		Failed HttpFunc `json:"-"`
 		Denied HttpFunc `json:"-"`
+	}
+
+	Auth map[string]Sign
+	Sign struct {
+		Sign    string `json:"sign"`
+		Require bool   `json:"require"`
+		Base    string `json:"base"`
+		Table   string `json:"table"`
+		Name    string `json:"name"`
+		Desc    string `json:"desc"`
+		Empty   *Res   `json:"-"`
+		Error   *Res   `json:"-"`
+	}
+	Item   map[string]Entity
+	Entity struct {
+		Key     string `json:"key"`
+		Require bool   `json:"require"`
+		Base    string `json:"base"`
+		Table   string `json:"table"`
+		Name    string `json:"name"`
+		Desc    string `json:"desc"`
+		Empty   *Res   `json:"-"`
+		Error   *Res   `json:"-"`
 	}
 )
 
@@ -290,6 +313,7 @@ func newHttp() *httpModule {
 
 		url: &httpUrl{},
 	}
+
 }
 
 //注册HTTP驱动
@@ -597,7 +621,7 @@ func (module *httpModule) Router(name string, config Router, overrides ...bool) 
 				//待优化：是否使用专用类型
 				if methodConfig.Auth != nil {
 					if realConfig.Auth == nil {
-						realConfig.Auth = Map{}
+						realConfig.Auth = Auth{}
 					}
 					for k, v := range methodConfig.Auth {
 						realConfig.Auth[k] = v
@@ -607,11 +631,33 @@ func (module *httpModule) Router(name string, config Router, overrides ...bool) 
 				//待优化：是否使用专用类型
 				if methodConfig.Item != nil {
 					if realConfig.Item == nil {
-						realConfig.Item = Map{}
+						realConfig.Item = Item{}
 					}
 					for k, v := range methodConfig.Item {
 						realConfig.Item[k] = v
 					}
+				}
+
+				//复制方法
+				if methodConfig.Action != nil {
+					realConfig.Action = methodConfig.Action
+				}
+				if methodConfig.Actions != nil {
+					realConfig.Actions = methodConfig.Actions
+				}
+
+				//复制处理器
+				if methodConfig.Found != nil {
+					realConfig.Found = methodConfig.Found
+				}
+				if methodConfig.Error != nil {
+					realConfig.Error = methodConfig.Error
+				}
+				if methodConfig.Failed != nil {
+					realConfig.Failed = methodConfig.Failed
+				}
+				if methodConfig.Denied != nil {
+					realConfig.Denied = methodConfig.Denied
 				}
 
 				//相关参数
@@ -1108,6 +1154,9 @@ func (module *httpModule) serve(thread HttpThread) {
 	ctx := httpContext(thread)
 	if config, ok := module.routers[ctx.Name]; ok {
 		ctx.Config = config
+		if config.Setting != nil {
+			ctx.Setting = config.Setting
+		}
 	}
 
 	//request拦截器，加入调用列表
@@ -1714,7 +1763,9 @@ func (module *httpModule) bodyProxy(ctx *Http, body httpProxyBody) {
 func (module *httpModule) found(ctx *Http) {
 	ctx.clear()
 
-	ctx.Code = http.StatusNotFound
+	if ctx.Code <= 0 {
+		ctx.Code = http.StatusNotFound
+	}
 
 	//如果有自定义的错误处理，加入调用列表
 	// funcs := ctx.funcing("found")
@@ -1734,22 +1785,28 @@ func (module *httpModule) found(ctx *Http) {
 
 //最终还是由response处理
 func (module *httpModule) foundDefaultHandler(ctx *Http) {
-	found := newResult("found")
+	found := newResult("_found")
 	if res := ctx.Result(); res != nil {
 		found = res
 	}
+
+	ctx.Code = http.StatusNotFound
 
 	//如果是ajax访问，返回JSON对应，要不然返回页面
 	if ctx.Ajax {
 		ctx.Answer(found)
 	} else {
-		ctx.View("found")
+		ctx.Text("http not found")
 	}
 }
 
 //事件handler,错误的处理
 func (module *httpModule) error(ctx *Http) {
 	ctx.clear()
+
+	if ctx.Code <= 0 {
+		ctx.Code = http.StatusInternalServerError
+	}
 
 	//如果有自定义的错误处理，加入调用列表
 	// funcs := ctx.funcing("error")
@@ -1769,15 +1826,12 @@ func (module *httpModule) error(ctx *Http) {
 
 //最终还是由response处理
 func (module *httpModule) errorDefaultHandler(ctx *Http) {
-	error := newResult("error")
+	error := newResult("_error")
 	if res := ctx.Result(); res != nil {
 		error = res
 	}
 
 	ctx.Code = http.StatusInternalServerError
-	if error == Found {
-		ctx.Code = 404
-	}
 
 	if ctx.Ajax {
 		ctx.Answer(error)
@@ -1796,6 +1850,10 @@ func (module *httpModule) errorDefaultHandler(ctx *Http) {
 //事件handler,失败处理，主要是args失败
 func (module *httpModule) failed(ctx *Http) {
 	ctx.clear()
+
+	if ctx.Code <= 0 {
+		ctx.Code = http.StatusBadRequest
+	}
 
 	//如果有自定义的失败处理，加入调用列表
 	// funcs := ctx.funcing("failed")
@@ -1816,10 +1874,12 @@ func (module *httpModule) failed(ctx *Http) {
 
 //最终还是由response处理
 func (module *httpModule) failedDefaultHandler(ctx *Http) {
-	failed := newResult("failed")
+	failed := newResult("_failed")
 	if res := ctx.Result(); res != nil {
 		failed = res
 	}
+
+	ctx.Code = http.StatusBadRequest
 
 	if ctx.Ajax {
 		ctx.Answer(failed)
@@ -1831,6 +1891,10 @@ func (module *httpModule) failedDefaultHandler(ctx *Http) {
 //事件handler,失败处理，主要是args失败
 func (module *httpModule) denied(ctx *Http) {
 	ctx.clear()
+
+	if ctx.Code <= 0 {
+		ctx.Code = http.StatusUnauthorized
+	}
 
 	//如果有自定义的失败处理，加入调用列表
 	// funcs := ctx.funcing("denied")
@@ -1853,10 +1917,12 @@ func (module *httpModule) denied(ctx *Http) {
 //如果是ajax。返回拒绝
 //如果不是， 返回一个脚本提示
 func (module *httpModule) deniedDefaultHandler(ctx *Http) {
-	denied := newResult("denied")
+	denied := newResult("_denied")
 	if res := ctx.Result(); res != nil {
 		denied = res
 	}
+
+	ctx.Code = http.StatusUnauthorized
 
 	if ctx.Ajax {
 		ctx.Answer(denied)

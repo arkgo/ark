@@ -101,6 +101,7 @@ func httpContext(thread HttpThread) *Http {
 		index: 0, nexts: make([]HttpFunc, 0), databases: make(map[string]DataBase),
 		charset: UTF8, lang: DEFAULT, zone: time.Local,
 		thread: thread, request: thread.Request(), response: thread.Response(),
+		Setting: make(Map),
 		headers: make(map[string]string), cookies: make(map[string]http.Cookie), sessions: make(Map),
 		Client: make(Map), Params: make(Map), Query: make(Map), Form: make(Map), Upload: make(Map), Data: make(Map),
 		Value: make(Map), Args: make(Map), Auth: make(Map), Item: make(Map), Local: make(Map),
@@ -788,29 +789,17 @@ func (ctx *Http) authHandler() *Res {
 	if ctx.Config.Auth != nil {
 		saveMap := Map{}
 
-		for authKey, authMap := range ctx.Config.Auth {
-
-			if _, ok := authMap.(Map); ok == false {
-				continue
-			}
+		for authKey, authConfig := range ctx.Config.Auth {
 
 			ohNo := false
-			authConfig := authMap.(Map)
 
-			if vv, ok := authConfig["sign"].(string); ok == false || vv == "" {
+			if authConfig.Sign == "" {
 				continue
 			}
 
-			authSign := authConfig["sign"].(string)
-			authMust := false
+			authSign := authConfig.Sign
+			authMust := authConfig.Require
 			// authName := authSign
-
-			if vv, ok := authConfig["must"].(bool); ok {
-				authMust = vv
-			}
-			// if vv,ok := authConfig[kNAME].(string); ok && vv!="" {
-			// 	authName = vv
-			// }
 
 			//判断是否登录
 			if ctx.Signed(authSign) {
@@ -819,37 +808,17 @@ func (ctx *Http) authHandler() *Res {
 				//1. data=table 如： "auth": "db.user"
 				//2. base=db, table=user
 
-				base, table := "", ""
-				if authConfig["data"] != nil {
-					if vv, ok := authConfig["data"].(string); ok {
-						i := strings.Index(vv, ".")
-						base = vv[:i]
-						table = vv[i+1:]
-					}
-				} else if authConfig["base"] != nil && authConfig["table"] != nil {
-					if vv, ok := authConfig["base"].(string); ok {
-						base = vv
-					}
-					if vv, ok := authConfig["table"].(string); ok {
-						table = vv
-					}
-				}
-
-				if base != "" && table != "" {
-					db := ctx.dataBase(base)
+				if authConfig.Base != "" && authConfig.Table != "" {
+					db := ctx.dataBase(authConfig.Base)
 					id := ctx.Signal(authSign)
-					item := db.Table(table).Entity(id)
+					item := db.Table(authConfig.Table).Entity(id)
 
 					if item == nil {
 						if authMust {
-							if vv, ok := authConfig["error"].(*Res); ok {
-								return vv
+							if authConfig.Error != nil {
+								return authConfig.Error
 							} else {
-								errKey := ".auth.error"
-								if vv, ok := authConfig["error"].(string); ok {
-									errKey = vv
-								}
-								return newResult(errKey + "." + authKey)
+								return newResult("_auth_error_" + authKey)
 							}
 						}
 					} else {
@@ -864,14 +833,10 @@ func (ctx *Http) authHandler() *Res {
 			//到这里是未登录的
 			//而且是必须要登录，才显示错误
 			if ohNo && authMust {
-				if vv, ok := authConfig["empty"].(*Res); ok {
-					return vv
+				if authConfig.Empty != nil {
+					return authConfig.Empty
 				} else {
-					errKey := ".auth.empty"
-					if vv, ok := authConfig["empty"].(string); ok {
-						errKey = vv
-					}
-					return newResult(errKey + "." + authKey)
+					return newResult("_auth_empty_" + authKey)
 				}
 			}
 		}
@@ -891,94 +856,43 @@ func (ctx *Http) itemHandler() *Res {
 	if ctx.Config.Item != nil {
 		saveMap := Map{}
 
-		for itemKey, v := range ctx.Config.Item {
-			if config, ok := v.(Map); ok {
+		for itemKey, config := range ctx.Config.Item {
 
-				//是否必须
-				must := true
-				if vv, ok := config["must"].(bool); ok {
-					must = vv
-				}
+			//itemName := itemKey
+			//if vv,ok := config[kNAME].(string); ok && vv != "" {
+			//	itemName = vv
+			//}
 
-				//itemName := itemKey
-				//if vv,ok := config[kNAME].(string); ok && vv != "" {
-				//	itemName = vv
-				//}
+			realKey := "id"
+			if config.Key != "" {
+				realKey = config.Key
+			}
+			realVal := ctx.Value[realKey]
 
-				realKey := itemKey
-				var realVal Any
-				if vv, ok := config["args"].(string); ok {
-					realKey = vv
-					realVal = ctx.Args[realKey]
-					//} else if vv, ok := config[kPARAM].(string); ok {
-					//	realKey = vv
-					//	realVal = ctx.Param[realKey]
-					//} else if vv, ok := config[kQUERY].(string); ok {
-					//	realKey = vv
-					//	realVal = ctx.Query[realKey]
-				} else if vv, ok := config["value"].(string); ok {
-					realKey = vv
-					realVal = ctx.Value[realKey]
-				} else if vv, ok := config["key"].(string); ok {
-					realKey = vv
-					realVal = ctx.Value[realKey]
+			if realVal == nil && config.Require {
+				if config.Empty != nil {
+					return config.Empty
 				} else {
-					realVal = nil
+					return newResult("_item_empty_" + itemKey)
 				}
+			} else {
 
-				if realVal == nil && must {
-					if vv, ok := config["empty"].(*Res); ok {
-						return vv
-					} else {
-						errKey := ".item.empty"
-						if vv, ok := config["empty"].(string); ok {
-							errKey = vv
-						}
-						return newResult(errKey + "." + itemKey)
-					}
-				} else {
-
-					//支持两种方式
-					//1. data=table 如： "auth": "db.user"
-					//2. base=db, table=user
-
-					base, table := "", ""
-					if config["data"] != nil {
-						if vv, ok := config["data"].(string); ok {
-							i := strings.Index(vv, ".")
-							base = vv[:i]
-							table = vv[i+1:]
-						}
-					} else if config["base"] != nil && config["table"] != nil {
-						if vv, ok := config["base"].(string); ok {
-							base = vv
-						}
-						if vv, ok := config["table"].(string); ok {
-							table = vv
-						}
-					}
-
-					//判断是否需要查询数据
-					if base != "" && table != "" {
-						//要查询库
-						db := ctx.dataBase(base)
-						item := db.Table(table).Entity(realVal)
-						if must && (db.Erred() != nil || item == nil) {
-							if vv, ok := config["error"].(*Res); ok {
-								return vv
-							} else {
-								errKey := ".item.error"
-								if vv, ok := config["error"].(string); ok {
-									errKey = vv
-								}
-								return newResult(errKey + "." + itemKey)
-							}
+				//判断是否需要查询数据
+				if config.Base != "" && config.Table != "" && realVal != nil {
+					//要查询库
+					db := ctx.dataBase(config.Base)
+					item := db.Table(config.Table).Entity(realVal)
+					if config.Require && (db.Erred() != nil || item == nil) {
+						if config.Error != nil {
+							return config.Error
 						} else {
-							saveMap[itemKey] = item
+							return newResult("_item_rror_" + itemKey)
 						}
+					} else {
+						saveMap[itemKey] = item
 					}
-
 				}
+
 			}
 		}
 
@@ -1003,6 +917,7 @@ func (ctx *Http) Found() {
 	ark.Http.found(ctx)
 }
 func (ctx *Http) Error(res *Res) {
+	ctx.lastError = res
 	ark.Http.error(ctx)
 }
 func (ctx *Http) Failed(res *Res) {

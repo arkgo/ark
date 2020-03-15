@@ -65,10 +65,10 @@ type (
 		Alias []string `json:"alias"`
 	}
 	Queue struct {
-		Name    string   `json:"name"`
-		Desc    string   `json:"desc"`
-		Alias   []string `json:"alias"`
-		Threads int      `json:"threads"`
+		Name   string   `json:"name"`
+		Desc   string   `json:"desc"`
+		Alias  []string `json:"alias"`
+		Thread int      `json:"thread"`
 	}
 )
 
@@ -189,18 +189,18 @@ func (module *busModule) Queue(name string, config Queue, overrides ...bool) {
 		alias = append(alias, config.Alias...)
 	}
 
-	if config.Threads <= 1 {
-		config.Threads = 1
+	if config.Thread <= 1 {
+		config.Thread = 1
 	}
 
 	for _, key := range alias {
 		if override {
 			module.queues[key] = config
-			module.queueThreads[key] = config.Threads
+			module.queueThreads[key] = config.Thread
 		} else {
 			if _, ok := module.queues[key]; ok == false {
 				module.queues[key] = config
-				module.queueThreads[key] = config.Threads
+				module.queueThreads[key] = config.Thread
 			}
 		}
 	}

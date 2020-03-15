@@ -59,8 +59,8 @@ type (
 		Expressions []string `json:"expressions"`
 	}
 
-	TypeValidFunc func(Any, Map) bool
-	TypeValueFunc func(Any, Map) Any
+	TypeValidFunc func(Any, Param) bool
+	TypeValueFunc func(Any, Param) Any
 	Type          struct {
 		Name    string        `json:"name"`
 		Desc    string        `json:"desc"`
@@ -70,8 +70,8 @@ type (
 		Value   TypeValueFunc `json:"-"`
 	}
 
-	CryptoEncodeFunc func(Any, Map) Any
-	CryptoDecodeFunc func(Any, Map) Any
+	CryptoEncodeFunc func(Any, Param) Any
+	CryptoDecodeFunc func(Any, Param) Any
 	Crypto           struct {
 		Name    string           `json:"name"`
 		Desc    string           `json:"desc"`
@@ -508,13 +508,10 @@ func (module *basicModule) Crypto(name string, config Crypto, overrides ...bool)
 	}
 }
 
-func (module *basicModule) typeDefaultValid(value Any, config Map) bool {
-	if t, ok := config["type"]; ok {
-		return module.Match(fmt.Sprintf("%s", value), fmt.Sprintf("%v", t))
-	}
-	return false
+func (module *basicModule) typeDefaultValid(value Any, config Param) bool {
+	return module.Match(fmt.Sprintf("%s", value), config.Type)
 }
-func (module *basicModule) typeDefaultValue(value Any, config Map) Any {
+func (module *basicModule) typeDefaultValue(value Any, config Param) Any {
 	return fmt.Sprintf("%s", value)
 }
 
@@ -534,32 +531,32 @@ func (module *basicModule) typeValue(name string) TypeValueFunc {
 	}
 	return module.typeDefaultValue
 }
-func (module *basicModule) typeMethod(name string) (func(Any, Map) bool, func(Any, Map) Any) {
+func (module *basicModule) typeMethod(name string) (TypeValidFunc, TypeValueFunc) {
 	return module.typeValid(name), module.typeValue(name)
 }
 
-func (module *basicModule) cryptoDefaultEncode(value Any, setting Map) Any {
+func (module *basicModule) cryptoDefaultEncode(value Any, config Param) Any {
 	return value
 }
-func (module *basicModule) cryptoDefaultDecode(value Any, setting Map) Any {
+func (module *basicModule) cryptoDefaultDecode(value Any, config Param) Any {
 	return value
 }
 
-func (module *basicModule) cryptoEncode(name string) (CryptoEncodeFunc, Map) {
+func (module *basicModule) cryptoEncode(name string) CryptoEncodeFunc {
 	if config, ok := module.cryptos[name]; ok {
 		if config.Encode != nil {
-			return config.Encode, config.Setting
+			return config.Encode
 		}
 	}
-	return module.cryptoDefaultEncode, Map{}
+	return module.cryptoDefaultEncode
 }
-func (module *basicModule) cryptoDecode(name string) (CryptoDecodeFunc, Map) {
+func (module *basicModule) cryptoDecode(name string) CryptoDecodeFunc {
 	if config, ok := module.cryptos[name]; ok {
 		if config.Decode != nil {
-			return config.Decode, config.Setting
+			return config.Decode
 		}
 	}
-	return module.cryptoDefaultDecode, Map{}
+	return module.cryptoDefaultDecode
 }
 
 // func (module *basicModule) cryptoMethod(name string) (CryptoEncodeFunc, CryptoDecodeFunc) {
@@ -1197,7 +1194,7 @@ func (module *basicModule) Mapping(config Params, data Map, value Map, argn bool
 						//包装值
 						if fieldValueCall != nil {
 							//待处理：到底是传config还是setting
-							fieldValue = fieldValueCall(fieldValue, fieldConfig.Setting)
+							fieldValue = fieldValueCall(fieldValue, fieldConfig)
 						}
 					}
 
@@ -1239,8 +1236,8 @@ func (module *basicModule) Mapping(config Params, data Map, value Map, argn bool
 					// if sv,ok := fieldValue.(string); ok {
 
 					//得到解密方法
-					decode, setting := module.cryptoDecode(fieldConfig.Decode)
-					if val := decode(fieldValue, setting); val != nil {
+					decode := module.cryptoDecode(fieldConfig.Decode)
+					if val := decode(fieldValue, fieldConfig); val != nil {
 						//前方解过密了，表示该参数，不再加密
 						//因为加密解密，只有一个2选1的
 						//比如 args 只需要解密 data 只需要加密
@@ -1273,7 +1270,7 @@ func (module *basicModule) Mapping(config Params, data Map, value Map, argn bool
 					if fieldValidCall != nil {
 						//如果验证通过
 						//待处理：这里到底是传setting还是fieldconfig比较好
-						if fieldValidCall(fieldValue, fieldConfig.Setting) {
+						if fieldValidCall(fieldValue, fieldConfig) {
 							//包装值
 							if fieldValueCall != nil {
 								//对时间值做时区处理
@@ -1290,7 +1287,7 @@ func (module *basicModule) Mapping(config Params, data Map, value Map, argn bool
 								}
 
 								//待处理：这里到底是传setting还是config
-								fieldValue = fieldValueCall(fieldValue, fieldConfig.Setting)
+								fieldValue = fieldValueCall(fieldValue, fieldConfig)
 							}
 						} else { //验证不通过
 
@@ -1306,7 +1303,7 @@ func (module *basicModule) Mapping(config Params, data Map, value Map, argn bool
 									//这样方便在多语言环境使用
 									key := "_mapping_error_" + fieldName
 									if module.Code(key, -999) == -999 {
-										return newResult(".mapping.error", fieldConfig.Name)
+										return newResult("_mapping_error", fieldConfig.Name)
 									}
 									return newResult(key)
 								}
@@ -1394,7 +1391,7 @@ func (module *basicModule) Mapping(config Params, data Map, value Map, argn bool
 			//最后，值要不要加密什么的
 			//如果加密
 			//encode
-			if fieldConfig.Decode != "" && decoded == false && passEmpty == false && passError == false {
+			if fieldConfig.Encode != "" && decoded == false && passEmpty == false && passError == false {
 
 				/*
 				   //全都转成字串再加密
@@ -1402,8 +1399,8 @@ func (module *basicModule) Mapping(config Params, data Map, value Map, argn bool
 				   //不用转了，因为hashid这样的加密就要int64
 				*/
 
-				encode, setting := module.cryptoEncode(fieldConfig.Decode)
-				if val := encode(fieldValue, setting); val != nil {
+				encode := module.cryptoEncode(fieldConfig.Encode)
+				if val := encode(fieldValue, fieldConfig); val != nil {
 					fieldValue = val
 				}
 			}
