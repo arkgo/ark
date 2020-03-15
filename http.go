@@ -237,7 +237,7 @@ type (
 		Uris     []string `json:"uris"`
 		Name     string   `json:"name"`
 		Desc     string   `json:"desc"`
-		Method   string   `json:"method"`
+		method   string   `json:"method"` //真实记录实际的method
 		Nullable bool     `json:"nullable"`
 		Socket   bool     `json:"socket"`
 		Setting  Map      `json:"setting"`
@@ -247,7 +247,7 @@ type (
 		Args Params `json:"args"`
 		Data Params `json:"data"`
 
-		Routing Routing    `json:"-"`
+		Method  Routing    `json:"-"`
 		Action  HttpFunc   `json:"-"`
 		Actions []HttpFunc `json:"-"`
 
@@ -388,8 +388,8 @@ func (module *httpModule) registering(config Router) HttpRegister {
 
 	//方法
 	methods := []string{}
-	if config.Method != "" {
-		methods = append(methods, config.Method)
+	if config.method != "" {
+		methods = append(methods, config.method)
 	}
 
 	site := config.site
@@ -574,9 +574,9 @@ func (module *httpModule) Router(name string, config Router, overrides ...bool) 
 	routers := make(map[string]Router)
 	for routerName, routerConfig := range objects {
 
-		if routerConfig.Routing != nil {
+		if routerConfig.Method != nil {
 			//多method版本
-			for method, methodConfig := range routerConfig.Routing {
+			for method, methodConfig := range routerConfig.Method {
 				realName := fmt.Sprintf("%s.%s", routerName, method)
 				realConfig := routerConfig //从顶级复制
 
@@ -661,7 +661,7 @@ func (module *httpModule) Router(name string, config Router, overrides ...bool) 
 				}
 
 				//相关参数
-				realConfig.Method = method
+				realConfig.method = method
 
 				//加入列表
 				routers[realName] = realConfig
@@ -691,7 +691,7 @@ func (module *httpModule) Router(name string, config Router, overrides ...bool) 
 		}
 
 		//这里全局置空
-		val.Routing = nil
+		val.Method = nil
 
 		if override {
 			module.routers[key] = val
@@ -1938,80 +1938,6 @@ func (module *httpModule) newSite(name string, roots ...string) *httpSite {
 	}
 	return &httpSite{module, name, root}
 }
-
-func (site *httpSite) Route(name string, args ...Map) string {
-	realName := fmt.Sprintf("%s.%s", site.name, name)
-	return ark.Http.url.Route(realName, args...)
-}
-
-// func (site *httpSite) Router(name string, config Map, overrides ...bool) {
-// 	realName := fmt.Sprintf("%s.%s", site.name, name)
-// 	if site.root != "" {
-// 		if uri, ok := config["uri"].(string); ok {
-// 			config["uri"] = site.root + uri
-// 		} else if uris, ok := config["uris"].([]string); ok {
-// 			for i, uri := range uris {
-// 				uris[i] = site.root + uri
-// 			}
-// 			config["uris"] = uris
-// 		}
-// 	}
-// 	site.module.Router(realName, config, overrides...)
-// }
-
-// func (site *httpSite) Filter(name string, config Map, overrides ...bool) {
-// 	realName := fmt.Sprintf("%s.%s", site.name, name)
-// 	site.module.Filter(realName, config, overrides...)
-// }
-// func (site *httpSite) RequestFilter(name string, config Map) {
-// 	config["request"] = config["action"]
-// 	delete(config, "action")
-// 	site.Filter(name, config)
-// }
-// func (site *httpSite) ExecuteFilter(name string, config Map) {
-// 	config["execute"] = config["action"]
-// 	delete(config, "action")
-// 	site.Filter(name, config)
-// }
-// func (site *httpSite) ResponseFilter(name string, config Map) {
-// 	config["response"] = config["action"]
-// 	delete(config, "action")
-// 	site.Filter(name, config)
-// }
-// func (site *httpSite) Handler(name string, config Map, overrides ...bool) {
-// 	realName := fmt.Sprintf("%s.%s", site.name, name)
-// 	site.module.Handler(realName, config, overrides...)
-// }
-// func (site *httpSite) FoundHandler(name string, config Map) {
-// 	config["found"] = config["action"]
-// 	delete(config, "action")
-// 	site.Handler(name, config)
-// }
-// func (site *httpSite) ErrorHandler(name string, config Map) {
-// 	config["error"] = config["action"]
-// 	delete(config, "action")
-// 	site.Handler(name, config)
-// }
-// func (site *httpSite) FailedHandler(name string, config Map) {
-// 	config["failed"] = config["action"]
-// 	delete(config, "action")
-// 	site.Handler(name, config)
-// }
-// func (site *httpSite) DeniedHandler(name string, config Map) {
-// 	config["denied"] = config["action"]
-// 	delete(config, "action")
-// 	site.Handler(name, config)
-// }
-
-// func Filter(name string, config Map, overrides ...bool) {
-// 	ark.Http.Filter(name, config, overrides...)
-// }
-// func Handler(name string, config Map, overrides ...bool) {
-// 	ark.Http.Handler(name, config, overrides...)
-// }
-// func Router(name string, config Map, overrides ...bool) {
-// 	ark.Http.Router(name, config, overrides...)
-// }
 
 func Site(name string, roots ...string) *httpSite {
 	return ark.Http.newSite(name, roots...)

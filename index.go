@@ -1,7 +1,6 @@
 package ark
 
 import (
-	"fmt"
 	"math"
 
 	. "github.com/arkgo/base"
@@ -15,36 +14,6 @@ var (
 	Sites *httpSite
 	Root  *httpSite
 )
-
-// func Driver(name string, driver Any) {
-// 	switch drv := driver.(type) {
-// 	case LoggerDriver:
-// 		ark.Logger.Driver(key, val)
-// 	case MutexDriver:
-// 		ark.Mutex.Driver(key, val)
-// 	case BusDriver:
-// 		ark.Bus.Driver(key, val)
-// 	case StoreDriver:
-// 		ark.Store.Driver(key, val)
-// 	case SessionDriver:
-// 		ark.Session.Driver(key, val)
-// 	case CacheDriver:
-// 		ark.Cache.Driver(key, val)
-// 	case DataDriver:
-// 		ark.Data.Driver(key, val)
-// 	case HttpDriver:
-// 		ark.Http.Driver(key, val)
-// 	case ViewDriver:
-// 		ark.View.Driver(key, val)
-// 	}
-// }
-
-// func Register(name string, data Any, overrides ...bool) {
-// 	switch config := data.(type) {
-// 	case eventRegister:
-// 		ark.Bus.Event(name, config, overrides...)
-// 	}
-// }
 
 func Precision(f float64, prec int, rounds ...bool) float64 {
 	round := false
@@ -154,41 +123,6 @@ func Register(args ...Any) {
 
 	case Helper:
 		ark.View.Helper(key, val, override)
-	}
-
-}
-
-// Register 注册中心
-func (site *httpSite) Register(name string, value Any, overrides ...bool) {
-	key := fmt.Sprintf("%s.%s", site.name, name)
-
-	switch val := value.(type) {
-	case Router:
-		if site.root != "" {
-			if val.Uri != "" {
-				val.Uri = site.root + val.Uri
-			}
-			if val.Uris != nil {
-				for i, uri := range val.Uris {
-					val.Uris[i] = site.root + uri
-				}
-			}
-		}
-		ark.Http.Router(key, val, overrides...)
-	case Filter:
-		ark.Http.Filter(key, val, overrides...)
-	case RequestFilter:
-		ark.Http.RequestFilter(key, val, overrides...)
-	case ExecuteFilter:
-		ark.Http.ExecuteFilter(key, val, overrides...)
-	case FoundHandler:
-		ark.Http.FoundHandler(key, val, overrides...)
-	case ErrorHandler:
-		ark.Http.ErrorHandler(key, val, overrides...)
-	case FailedHandler:
-		ark.Http.FailedHandler(key, val, overrides...)
-	case DeniedHandler:
-		ark.Http.DeniedHandler(key, val, overrides...)
 	}
 
 }

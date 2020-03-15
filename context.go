@@ -790,16 +790,12 @@ func (ctx *Http) authHandler() *Res {
 		saveMap := Map{}
 
 		for authKey, authConfig := range ctx.Config.Auth {
-
 			ohNo := false
 
-			if authConfig.Sign == "" {
-				continue
-			}
-
 			authSign := authConfig.Sign
-			authMust := authConfig.Require
-			// authName := authSign
+			if authSign == "" {
+				authSign = authKey
+			}
 
 			//判断是否登录
 			if ctx.Signed(authSign) {
@@ -814,7 +810,7 @@ func (ctx *Http) authHandler() *Res {
 					item := db.Table(authConfig.Table).Entity(id)
 
 					if item == nil {
-						if authMust {
+						if authConfig.Require {
 							if authConfig.Error != nil {
 								return authConfig.Error
 							} else {
@@ -832,7 +828,7 @@ func (ctx *Http) authHandler() *Res {
 
 			//到这里是未登录的
 			//而且是必须要登录，才显示错误
-			if ohNo && authMust {
+			if ohNo && authConfig.Require {
 				if authConfig.Empty != nil {
 					return authConfig.Empty
 				} else {
