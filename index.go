@@ -3,7 +3,7 @@ package ark
 import (
 	"math"
 
-	. "github.com/arkgo/base"
+	. "github.com/arkgo/asset"
 )
 
 var (

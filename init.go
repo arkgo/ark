@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
+	. "github.com/arkgo/asset"
 	"github.com/arkgo/asset/toml"
-	. "github.com/arkgo/base"
 )
 
 func init() {

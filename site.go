@@ -3,7 +3,7 @@ package ark
 import (
 	"fmt"
 
-	. "github.com/arkgo/base"
+	. "github.com/arkgo/asset"
 )
 
 type (

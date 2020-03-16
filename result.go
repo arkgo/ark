@@ -1,7 +1,7 @@
 package ark
 
 import (
-	. "github.com/arkgo/base"
+	. "github.com/arkgo/asset"
 )
 
 type (

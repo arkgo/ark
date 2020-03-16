@@ -6,8 +6,8 @@ import (
 	"strings"
 	"sync"
 
+	. "github.com/arkgo/asset"
 	"github.com/arkgo/asset/hashring"
-	. "github.com/arkgo/base"
 )
 
 type (

@@ -5,7 +5,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	. "github.com/arkgo/base"
+	. "github.com/arkgo/asset"
 )
 
 type (

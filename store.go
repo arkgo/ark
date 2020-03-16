@@ -12,9 +12,9 @@ import (
 	"sync"
 	"time"
 
+	. "github.com/arkgo/asset"
 	"github.com/arkgo/asset/hashring"
 	"github.com/arkgo/asset/util"
-	. "github.com/arkgo/base"
 	"github.com/disintegration/imaging"
 )
 
