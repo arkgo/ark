@@ -149,21 +149,15 @@ func httpContext(thread HttpThread) *Http {
 }
 
 func (ctx *Http) Charset(charsets ...string) string {
-	if len(charsets) > 0 {
-		charset := charsets[0]
-		if charset != "" {
-			ctx.charset = charset
-		}
+	if len(charsets) > 0 && charsets[0] != "" {
+		ctx.charset = charsets[0]
 	}
-	return ctx.lang
+	return ctx.charset
 }
 func (ctx *Http) Lang(langs ...string) string {
-	if len(langs) > 0 {
-		lang := langs[0]
-		if lang != "" {
-			//待优化：加上配置中的语言判断，否则不修改
-			ctx.lang = lang
-		}
+	if len(langs) > 0 && langs[0] != "" {
+		//待优化：加上配置中的语言判断，否则不修改
+		ctx.lang = langs[0]
 	}
 	return ctx.lang
 }
