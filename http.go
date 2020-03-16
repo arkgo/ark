@@ -1391,7 +1391,7 @@ func (module *httpModule) bodyText(ctx *Http, body httpTextBody) {
 	}
 
 	ctx.Type = ark.Basic.Mimetype(ctx.Type, "text/explain")
-	res.Header().Set("Content-Type", fmt.Sprintf("%v; charset=%v", ctx.Type, ctx.Charset))
+	res.Header().Set("Content-Type", fmt.Sprintf("%v; charset=%v", ctx.Type, ctx.Charset()))
 
 	res.WriteHeader(ctx.Code)
 	fmt.Fprint(res, body.text)
@@ -1406,7 +1406,7 @@ func (module *httpModule) bodyHtml(ctx *Http, body httpHtmlBody) {
 	}
 
 	ctx.Type = ark.Basic.Mimetype(ctx.Type, "text/html")
-	res.Header().Set("Content-Type", fmt.Sprintf("%v; charset=%v", ctx.Type, ctx.Charset))
+	res.Header().Set("Content-Type", fmt.Sprintf("%v; charset=%v", ctx.Type, ctx.Charset()))
 
 	res.WriteHeader(ctx.Code)
 	fmt.Fprint(res, body.html)
@@ -1417,7 +1417,7 @@ func (module *httpModule) bodyScript(ctx *Http, body httpScriptBody) {
 	res := ctx.response
 
 	ctx.Type = ark.Basic.Mimetype(ctx.Type, "application/script")
-	res.Header().Set("Content-Type", fmt.Sprintf("%v; charset=%v", ctx.Type, ctx.Charset))
+	res.Header().Set("Content-Type", fmt.Sprintf("%v; charset=%v", ctx.Type, ctx.Charset()))
 
 	res.WriteHeader(ctx.Code)
 	fmt.Fprint(res, body.script)
@@ -1433,7 +1433,7 @@ func (module *httpModule) bodyJson(ctx *Http, body httpJsonBody) {
 	} else {
 
 		ctx.Type = ark.Basic.Mimetype(ctx.Type, "text/json")
-		res.Header().Set("Content-Type", fmt.Sprintf("%v; charset=%v", ctx.Type, ctx.Charset))
+		res.Header().Set("Content-Type", fmt.Sprintf("%v; charset=%v", ctx.Type, ctx.Charset()))
 
 		res.WriteHeader(ctx.Code)
 		fmt.Fprint(res, string(bytes))
@@ -1450,7 +1450,7 @@ func (module *httpModule) bodyJsonp(ctx *Http, body httpJsonpBody) {
 	} else {
 
 		ctx.Type = ark.Basic.Mimetype(ctx.Type, "application/script")
-		res.Header().Set("Content-Type", fmt.Sprintf("%v; charset=%v", ctx.Type, ctx.Charset))
+		res.Header().Set("Content-Type", fmt.Sprintf("%v; charset=%v", ctx.Type, ctx.Charset()))
 
 		res.WriteHeader(ctx.Code)
 		fmt.Fprint(res, fmt.Sprintf("%s(%s);", body.callback, string(bytes)))
@@ -1478,7 +1478,7 @@ func (module *httpModule) bodyXml(ctx *Http, body httpXmlBody) {
 		http.Error(res, "解析xml失败", http.StatusInternalServerError)
 	} else {
 		ctx.Type = ark.Basic.Mimetype(ctx.Type, "text/xml")
-		res.Header().Set("Content-Type", fmt.Sprintf("%v; charset=%v", ctx.Type, ctx.Charset))
+		res.Header().Set("Content-Type", fmt.Sprintf("%v; charset=%v", ctx.Type, ctx.Charset()))
 
 		res.WriteHeader(ctx.Code)
 		fmt.Fprint(res, content)
@@ -1550,7 +1550,7 @@ func (module *httpModule) bodyFile(ctx *Http, body httpFileBody) {
 	//文件类型
 	if ctx.Type != "file" {
 		ctx.Type = ark.Basic.Mimetype(ctx.Type, "application/octet-stream")
-		res.Header().Set("Content-Type", fmt.Sprintf("%v; charset=%v", ctx.Type, ctx.Charset))
+		res.Header().Set("Content-Type", fmt.Sprintf("%v; charset=%v", ctx.Type, ctx.Charset()))
 	}
 	//加入自定义文件名
 	if body.name != "" {
@@ -1568,7 +1568,7 @@ func (module *httpModule) bodyDown(ctx *Http, body httpDownBody) {
 	}
 
 	ctx.Type = ark.Basic.Mimetype(ctx.Type, "application/octet-stream")
-	res.Header().Set("Content-Type", fmt.Sprintf("%v; charset=%v", ctx.Type, ctx.Charset))
+	res.Header().Set("Content-Type", fmt.Sprintf("%v; charset=%v", ctx.Type, ctx.Charset()))
 	//加入自定义文件名
 	if body.name != "" {
 		res.Header().Set("Content-Disposition", fmt.Sprintf("attachment;filename=%v;", body.name))
@@ -1587,7 +1587,7 @@ func (module *httpModule) bodyBuffer(ctx *Http, body httpBufferBody) {
 	}
 
 	ctx.Type = ark.Basic.Mimetype(ctx.Type, "application/octet-stream")
-	res.Header().Set("Content-Type", fmt.Sprintf("%v; charset=%v", ctx.Type, ctx.Charset))
+	res.Header().Set("Content-Type", fmt.Sprintf("%v; charset=%v", ctx.Type, ctx.Charset()))
 	//加入自定义文件名
 	if body.name != "" {
 		res.Header().Set("Content-Disposition", fmt.Sprintf("attachment;filename=%v;", body.name))
@@ -1625,7 +1625,7 @@ func (module *httpModule) bodyView(ctx *Http, body httpViewBody) {
 		http.Error(res, ctx.String(err.Error()), 500)
 	} else {
 		mime := ark.Basic.Mimetype(ctx.Type, "text/html")
-		res.Header().Set("Content-Type", fmt.Sprintf("%v; charset=%v", mime, ctx.Charset))
+		res.Header().Set("Content-Type", fmt.Sprintf("%v; charset=%v", mime, ctx.Charset()))
 		res.WriteHeader(ctx.Code)
 		fmt.Fprint(res, html)
 	}
