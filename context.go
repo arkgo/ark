@@ -24,11 +24,10 @@ import (
 type (
 	context interface {
 		terminal()
-		Result() *Res
+		Result(...*Res) *Res
 		Lang(...string) string
 		Zone(...*time.Location) *time.Location
 		dataBase(...string) DataBase
-		invoke(string, Map, ...Map) Map
 	}
 
 	HttpFunc func(*Http)
@@ -902,10 +901,16 @@ func (ctx *Http) itemHandler() *Res {
 
 //返回最后的错误信息
 //获取操作结果
-func (ctx *Http) Result() *Res {
-	err := ctx.lastError
-	ctx.lastError = nil
-	return err
+func (ctx *Http) Result(res ...*Res) *Res {
+	if len(res) > 0 {
+		err := res[0]
+		ctx.lastError = err
+		return err
+	} else {
+		err := ctx.lastError
+		ctx.lastError = nil
+		return err
+	}
 }
 
 //接入错误处理流程，和模块挂钩了
@@ -1036,21 +1041,62 @@ func (ctx *Http) Signer(key string) string {
 //----------------------- 签名系统 end ---------------------------------
 
 // ------- 服务调用 -----------------
-func (ctx *Http) invoke(name string, value Map, settings ...Map) Map {
-	ctx.lastError = nil
-
-	result, res := ark.Service.Invoke(ctx, name, value, settings...)
-	ctx.lastError = res
-
-	return result
-}
-
 func (ctx *Http) Invoke(name string, values ...Map) Map {
 	value := Map{}
 	if len(values) > 0 {
 		value = values[0]
 	}
-	return ctx.invoke(name, value, nil)
+	vvv, res := ark.Service.Invoke(ctx, name, value)
+	ctx.lastError = res
+	return vvv
+}
+
+func (ctx *Http) Invokes(name string, values ...Map) []Map {
+	value := Map{}
+	if len(values) > 0 {
+		value = values[0]
+	}
+	vvs, res := ark.Service.Invokes(ctx, name, value)
+	ctx.lastError = res
+	return vvs
+}
+func (ctx *Http) Invoked(name string, values ...Map) bool {
+	value := Map{}
+	if len(values) > 0 {
+		value = values[0]
+	}
+	vvv, res := ark.Service.Invoked(ctx, name, value)
+	ctx.lastError = res
+	return vvv
+}
+func (ctx *Http) Invoking(name string, offset, limit int64, values ...Map) (int64, []Map) {
+	value := Map{}
+	if len(values) > 0 {
+		value = values[0]
+	}
+	count, items, res := ark.Service.Invoking(ctx, name, offset, limit, value)
+	ctx.lastError = res
+	return count, items
+}
+
+func (ctx *Http) Invoker(name string, values ...Map) (Map, []Map) {
+	value := Map{}
+	if len(values) > 0 {
+		value = values[0]
+	}
+	item, items, res := ark.Service.Invoker(ctx, name, value)
+	ctx.lastError = res
+	return item, items
+}
+
+func (ctx *Http) Invokee(name string, values ...Map) float64 {
+	value := Map{}
+	if len(values) > 0 {
+		value = values[0]
+	}
+	count, res := ark.Service.Invokee(ctx, name, value)
+	ctx.lastError = res
+	return count
 }
 
 //------- 服务调用 -----------------

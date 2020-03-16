@@ -107,6 +107,7 @@ type (
 	Param  struct {
 		Type     string `json:"type"`
 		Require  bool   `json:"require"`
+		Unique   bool   `json:"unique"`
 		Nullable bool   `json:"nullable"`
 		Name     string `json:"name"`
 		Desc     string `json:"desc"`
