@@ -21,7 +21,7 @@ type (
 		MaxAge  string `toml:"maxage"`
 
 		Crypto   string `toml:"crypto"`
-		Validate string `toml:"validate"`
+		Validate bool   `toml:"validate"`
 		Format   string `toml:"format"`
 
 		Setting Map `toml:"setting"`

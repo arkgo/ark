@@ -269,21 +269,18 @@ func (ctx *Http) dataBase(bases ...string) DataBase {
 func (ctx *Http) clientHandler() *Res {
 	//var req = ctx.request.Reader
 
-	checking := true
-	coding := "text"
+	checking := false
 
-	if ctx.siteConfig.Validate == "" {
-		checking = false
-	} else {
-		coding = ctx.siteConfig.Validate
+	if ctx.siteConfig.Validate {
+		checking = true
 	}
 
 	//个别路由通行
 	if vv, ok := ctx.Setting["passport"].(bool); ok && vv {
 		checking = false
 	}
-	if vv, ok := ctx.Setting["validate"].(bool); ok && vv == false {
-		checking = false
+	if vv, ok := ctx.Setting["validate"].(bool); ok {
+		checking = vv
 	}
 
 	cs := ""
@@ -299,27 +296,39 @@ func (ctx *Http) clientHandler() *Res {
 		}
 	}
 
-	args := Params{
-		"client": Param{Type: "string", Require: true, Decode: coding},
-	}
-	data := Map{
-		"client": cs,
-	}
-	value := Map{}
-	err := ark.Basic.Mapping(args, data, value, false, false, ctx)
-	if err != nil {
-		return Invalid
-	}
+	// args := Params{
+	// 	"client": Param{Type: "string", Require: true, Decode: coding},
+	// }
+	// data := Map{
+	// 	"client": cs,
+	// }
+	// value := Map{}
+	// err := ark.Basic.Mapping(args, data, value, false, false, ctx)
+	// if err != nil {
+	// 	return Invalid
+	// }
 
 	//return nil
 
-	client := value["client"].(string)
+	// client := value["client"].(string)
+
+	client := ark.Codec.Decrypt(cs)
 	vals := strings.Split(client, "/")
 	if len(vals) < 7 && checking {
 		//Debug("client", "Length", err, client)
 		return Invalid
 	}
 
+	//保存参数
+	ctx.Client["device"] = vals[0]
+	ctx.Client["system"] = vals[1]
+	ctx.Client["version"] = vals[2]
+	ctx.Client["client"] = vals[3]
+	ctx.Client["number"] = vals[4]
+	ctx.Client["time"] = vals[5]
+	ctx.Client["sign"] = vals[6]
+
+	//实际传的，path不需要传，是传的签名
 	format := `{device}/{system}/{version}/{client}/{number}/{time}/{path}`
 	if ctx.siteConfig.Format != "" {
 		format = ctx.siteConfig.Format
@@ -341,15 +350,6 @@ func (ctx *Http) clientHandler() *Res {
 		//Debug("ClientSign", ctx.Uri, sign, data["client"], value["client"])
 		return Invalid
 	}
-
-	//保存参数
-	ctx.Client["device"] = vals[0]
-	ctx.Client["system"] = vals[1]
-	ctx.Client["version"] = vals[2]
-	ctx.Client["client"] = vals[3]
-	ctx.Client["number"] = vals[4]
-	ctx.Client["time"] = vals[5]
-	ctx.Client["sign"] = vals[6]
 
 	//到这里才成功
 	return nil
