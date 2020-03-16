@@ -270,7 +270,7 @@ type (
 	}
 	Item   map[string]Entity
 	Entity struct {
-		Key     string `json:"key"`
+		Value   string `json:"value"`
 		Require bool   `json:"require"`
 		Base    string `json:"base"`
 		Table   string `json:"table"`

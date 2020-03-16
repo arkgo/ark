@@ -7,7 +7,7 @@ const (
 )
 
 const (
-	UTF8   = "utf8"
+	UTF8   = "utf-8"
 	GB2312 = "gb2312"
 	GBK    = "gbk"
 )

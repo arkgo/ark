@@ -853,8 +853,8 @@ func (ctx *Http) itemHandler() *Res {
 			//}
 
 			realKey := "id"
-			if config.Key != "" {
-				realKey = config.Key
+			if config.Value != "" {
+				realKey = config.Value
 			}
 			realVal := ctx.Value[realKey]
 
