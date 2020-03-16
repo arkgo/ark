@@ -20,7 +20,7 @@ type (
 		name   string
 	}
 
-	serviceLogic struct {
+	ServiceLogic struct {
 		ctx     context
 		Name    string
 		Setting Map
@@ -234,12 +234,12 @@ func (module *serviceModule) Invokee(ctx context, name string, value Map, settin
 func (module *serviceModule) Library(name string) *serviceLibrary {
 	return &serviceLibrary{module, name}
 }
-func (module *serviceModule) Logic(ctx context, name string, settings ...Map) *serviceLogic {
+func (module *serviceModule) Logic(ctx context, name string, settings ...Map) *ServiceLogic {
 	setting := make(Map)
 	if len(settings) > 0 {
 		setting = settings[0]
 	}
-	return &serviceLogic{ctx, name, setting}
+	return &ServiceLogic{ctx, name, setting}
 }
 
 //------------ library ----------------
@@ -318,7 +318,7 @@ func (service *Service) Invokee(name string, values ...Map) float64 {
 	return count
 }
 
-func (lgc *Service) Logic(name string, settings ...Map) *serviceLogic {
+func (lgc *Service) Logic(name string, settings ...Map) *ServiceLogic {
 	return ark.Service.Logic(lgc.ctx, name, settings...)
 }
 
@@ -334,11 +334,11 @@ func (lgc *Service) Unlock(key string, cons ...string) error {
 }
 
 //------- logic 方法 -------------
-func (logic *serviceLogic) naming(name string) string {
+func (logic *ServiceLogic) naming(name string) string {
 	return logic.Name + "." + name
 }
 
-func (logic *serviceLogic) Invoke(name string, values ...Map) Map {
+func (logic *ServiceLogic) Invoke(name string, values ...Map) Map {
 	value := Map{}
 	if len(values) > 0 {
 		value = values[0]
@@ -348,7 +348,7 @@ func (logic *serviceLogic) Invoke(name string, values ...Map) Map {
 	return vvv
 }
 
-func (logic *serviceLogic) Invokes(name string, values ...Map) []Map {
+func (logic *ServiceLogic) Invokes(name string, values ...Map) []Map {
 	value := Map{}
 	if len(values) > 0 {
 		value = values[0]
@@ -357,7 +357,7 @@ func (logic *serviceLogic) Invokes(name string, values ...Map) []Map {
 	logic.ctx.Result(res)
 	return vvs
 }
-func (logic *serviceLogic) Invoked(name string, values ...Map) bool {
+func (logic *ServiceLogic) Invoked(name string, values ...Map) bool {
 	value := Map{}
 	if len(values) > 0 {
 		value = values[0]
@@ -366,7 +366,7 @@ func (logic *serviceLogic) Invoked(name string, values ...Map) bool {
 	logic.ctx.Result(res)
 	return vvv
 }
-func (logic *serviceLogic) Invoking(name string, offset, limit int64, values ...Map) (int64, []Map) {
+func (logic *ServiceLogic) Invoking(name string, offset, limit int64, values ...Map) (int64, []Map) {
 	value := Map{}
 	if len(values) > 0 {
 		value = values[0]
@@ -376,7 +376,7 @@ func (logic *serviceLogic) Invoking(name string, offset, limit int64, values ...
 	return count, items
 }
 
-func (logic *serviceLogic) Invoker(name string, values ...Map) (Map, []Map) {
+func (logic *ServiceLogic) Invoker(name string, values ...Map) (Map, []Map) {
 	value := Map{}
 	if len(values) > 0 {
 		value = values[0]
@@ -386,7 +386,7 @@ func (logic *serviceLogic) Invoker(name string, values ...Map) (Map, []Map) {
 	return item, items
 }
 
-func (logic *serviceLogic) Invokee(name string, values ...Map) float64 {
+func (logic *ServiceLogic) Invokee(name string, values ...Map) float64 {
 	value := Map{}
 	if len(values) > 0 {
 		value = values[0]
