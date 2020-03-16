@@ -56,6 +56,11 @@ func (site *httpSite) Register(name string, value Any, overrides ...bool) {
 		ark.Http.RequestFilter(key, val, overrides...)
 	case ExecuteFilter:
 		ark.Http.ExecuteFilter(key, val, overrides...)
+	case ResponseFilter:
+		ark.Http.ResponseFilter(key, val, overrides...)
+
+	case Handler:
+		ark.Http.Handler(key, val, overrides...)
 	case FoundHandler:
 		ark.Http.FoundHandler(key, val, overrides...)
 	case ErrorHandler:

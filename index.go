@@ -91,12 +91,17 @@ func Register(args ...Any) {
 
 	case Router:
 		ark.Http.Router(key, val, override)
+
 	case Filter:
 		ark.Http.Filter(key, val, override)
 	case RequestFilter:
 		ark.Http.RequestFilter(key, val, override)
 	case ExecuteFilter:
 		ark.Http.ExecuteFilter(key, val, override)
+	case ResponseFilter:
+		ark.Http.ResponseFilter(key, val, override)
+	case Handler:
+		ark.Http.Handler(key, val, override)
 	case FoundHandler:
 		ark.Http.FoundHandler(key, val, override)
 	case ErrorHandler:
