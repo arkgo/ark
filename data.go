@@ -333,15 +333,29 @@ func (module *dataModule) ModelConfig(name string) *Model {
 	return nil
 }
 
-func (module *dataModule) Field(name string, field string, requires ...bool) Param {
+func (module *dataModule) Field(name string, field string, extends ...Map) Param {
 	fields := module.Fields(name, []string{field})
 	var config Param
 	if vv, ok := fields[field]; ok {
 		config = vv
 	}
 
-	if len(requires) > 0 {
-		config.Require = requires[0]
+	if len(extends) > 0 {
+		mmm := extends[0]
+
+		if vv, ok := mmm["require"].(bool); ok {
+			config.Require = vv
+		}
+		if vv, ok := mmm["default"]; ok {
+			config.Default = vv
+		}
+		if vv, ok := mmm["option"]; ok {
+			if vv == nil {
+				config.Option = nil
+			} else if vvo, ok := vv.(Option); ok {
+				config.Option = vvo
+			}
+		}
 	}
 
 	return config
@@ -856,7 +870,7 @@ func GetModel(name string) *Model {
 	return ark.Data.ModelConfig(name)
 }
 
-func Field(name string, field string, exts ...bool) Param {
+func Field(name string, field string, exts ...Map) Param {
 	return ark.Data.Field(name, field, exts...)
 }
 func Fields(name string, keys []string, exts ...Params) Params {

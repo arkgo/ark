@@ -128,6 +128,12 @@ func Define(tttt string, require bool, name string, extends ...Map) Param {
 		if vv, ok := extend["default"]; ok {
 			config.Default = vv
 		}
+		if vv, ok := extend["children"].(Params); ok {
+			config.Children = vv
+		}
+		if vv, ok := extend["setting"].(Map); ok {
+			config.Setting = vv
+		}
 	}
 
 	return config
@@ -146,4 +152,22 @@ func Precision(f float64, prec int, rounds ...bool) float64 {
 	}
 	//默认
 	return math.Trunc((f)*pow10_n) / pow10_n
+}
+
+func InvokingConfig(offset, limit int64, extends ...Params) Params {
+	config := Params{
+		"offset": Param{
+			Type: "int", Require: true, Default: offset, Name: "offset", Desc: "offset",
+		},
+		"limit": Param{
+			Type: "int", Require: true, Default: limit, Name: "limit", Desc: "limit",
+		},
+	}
+
+	if len(extends) > 0 {
+		for k, v := range extends[0] {
+			config[k] = v
+		}
+	}
+	return config
 }
