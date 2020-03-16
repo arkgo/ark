@@ -161,7 +161,7 @@ func newData() *dataModule {
 }
 
 func (module *dataModule) connecting(name string, config DataConfig) (DataConnect, error) {
-	if driver, ok := module.drivers[name]; ok {
+	if driver, ok := module.drivers[config.Driver]; ok {
 		return driver.Connect(name, config)
 	}
 	panic("[数据]不支持的驱动：" + config.Driver)
