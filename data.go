@@ -838,9 +838,9 @@ func (module *dataModule) newGroup(base string) *dataGroup {
 // 	group.data.Model(realName, config)
 // }
 
-// func Data(names ...string) DataBase {
-// 	return ark.Data.Base(names...)
-// }
+func Data(names ...string) DataBase {
+	return ark.Data.Base(names...)
+}
 func Base(name string) *dataGroup {
 	return ark.Data.newGroup(name)
 }
