@@ -545,7 +545,7 @@ func (module *storeModule) Filing(conn, hash, name string, size int64) *storeFil
 	return file
 }
 
-func (module *storeModule) Uploading(file string) Map {
+func (module *storeModule) Stat(file string) Map {
 	stat, err := os.Stat(file)
 	if err != nil {
 		return nil
@@ -725,8 +725,11 @@ func (module *storeModule) safePreview(code string, w, h, t int64, id, ip string
 }
 
 //生成文件信息，给驱动用的
-func Filing(conn, hash, name string, size int64) File {
+func NewFile(conn, hash, name string, size int64) File {
 	return ark.Store.Filing(conn, hash, name, size)
+}
+func StatFile(file string) Map {
+	return ark.Store.Stat(file)
 }
 
 func Storage(target string) (File, Files, error) {
