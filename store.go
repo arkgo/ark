@@ -221,7 +221,7 @@ func (module *storeModule) Remove(code string) error {
 }
 
 //保存文件到 file, 而不是store
-func (module *storeModule) Save(target string) (File, Files, error) {
+func (module *storeModule) Storage(target string) (File, Files, error) {
 	stat, err := os.Stat(target)
 	if err != nil {
 		return nil, nil, err
@@ -248,7 +248,7 @@ func (module *storeModule) Save(target string) (File, Files, error) {
 				file := module.Filing("", hash, file.Name(), file.Size())
 
 				// coding := module.Encode("", ext, hash, file.Size())
-				err := module.Storage(source, file)
+				err := module.storage(source, file)
 				if err != nil {
 					return nil, nil, err
 				}
@@ -269,7 +269,7 @@ func (module *storeModule) Save(target string) (File, Files, error) {
 
 		file := module.Filing("", hash, stat.Name(), stat.Size())
 
-		err := module.Storage(target, file)
+		err := module.storage(target, file)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -281,7 +281,7 @@ func (module *storeModule) Save(target string) (File, Files, error) {
 }
 
 //file存储文件
-func (module *storeModule) Storage(source string, coding *storeFile) error {
+func (module *storeModule) storage(source string, coding *storeFile) error {
 	_, _, sFile, err := module.storaging(coding)
 	if err != nil {
 		return err
@@ -317,7 +317,7 @@ func (module *storeModule) Storage(source string, coding *storeFile) error {
 
 // file生成获取缩图并返回路径，
 // 待优化要不要判断一下节点，？
-func (module *storeModule) Thumbnail(code string, w, h, t int64) (string, File, error) {
+func (module *storeModule) thumbnail(code string, w, h, t int64) (string, File, error) {
 	data := module.Decode(code)
 	if data == nil {
 		return "", nil, errors.New("error code")
@@ -724,6 +724,17 @@ func (module *storeModule) safePreview(code string, w, h, t int64, id, ip string
 	// })
 }
 
+//生成文件信息，给驱动用的
 func Filing(conn, hash, name string, size int64) File {
 	return ark.Store.Filing(conn, hash, name, size)
+}
+
+func Storage(target string) (File, Files, error) {
+	return ark.Store.Storage(target)
+}
+func Upload(target string, metadata Map, bases ...string) (File, Files, error) {
+	return ark.Store.Upload(target, metadata, bases...)
+}
+func Download(code string) (string, error) {
+	return ark.Store.Download(code)
 }

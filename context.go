@@ -1117,7 +1117,7 @@ func (ctx *Http) Download(code string, names ...string) {
 
 //生成并返回缩略图
 func (ctx *Http) Thumbnail(code string, width, height, tttt int64) {
-	file, data, err := ark.Store.Thumbnail(code, width, height, tttt)
+	file, data, err := ark.Store.thumbnail(code, width, height, tttt)
 	if err != nil {
 		//ctx.Error(errResult(err))
 		ctx.File(path.Join(ark.Config.Http.Static, "shared", "nothing.png"), "png")
