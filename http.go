@@ -237,7 +237,7 @@ type (
 		Uris     []string `json:"uris"`
 		Name     string   `json:"name"`
 		Desc     string   `json:"desc"`
-		method   string   `json:"method"` //真实记录实际的method
+		Method   string   `json:"method"` //真实记录实际的method
 		Nullable bool     `json:"nullable"`
 		Socket   bool     `json:"socket"`
 		Setting  Map      `json:"setting"`
@@ -247,7 +247,7 @@ type (
 		Args Params `json:"args"`
 		Data Params `json:"data"`
 
-		Method  Routing    `json:"-"`
+		Routing Routing    `json:"routing"`
 		Action  HttpFunc   `json:"-"`
 		Actions []HttpFunc `json:"-"`
 
@@ -388,8 +388,8 @@ func (module *httpModule) registering(config Router) HttpRegister {
 
 	//方法
 	methods := []string{}
-	if config.method != "" {
-		methods = append(methods, config.method)
+	if config.Method != "" {
+		methods = append(methods, config.Method)
 	}
 
 	site := config.site
@@ -574,9 +574,9 @@ func (module *httpModule) Router(name string, config Router, overrides ...bool) 
 	routers := make(map[string]Router)
 	for routerName, routerConfig := range objects {
 
-		if routerConfig.Method != nil {
+		if routerConfig.Routing != nil {
 			//多method版本
-			for method, methodConfig := range routerConfig.Method {
+			for method, methodConfig := range routerConfig.Routing {
 				realName := fmt.Sprintf("%s.%s", routerName, method)
 				realConfig := routerConfig //从顶级复制
 
@@ -661,7 +661,7 @@ func (module *httpModule) Router(name string, config Router, overrides ...bool) 
 				}
 
 				//相关参数
-				realConfig.method = method
+				realConfig.Method = method
 
 				//加入列表
 				routers[realName] = realConfig
@@ -691,7 +691,7 @@ func (module *httpModule) Router(name string, config Router, overrides ...bool) 
 		}
 
 		//这里全局置空
-		val.Method = nil
+		val.Routing = nil
 
 		if override {
 			module.routers[key] = val
