@@ -261,7 +261,6 @@ func (ctx *Http) dataBase(bases ...string) DataBase {
 //设备，系统，版本，客户端，版本号，时间戳，签名
 //{device}/{system}/{version}/{client}/{number}/{time}/{sign}
 func (ctx *Http) clientHandler() *Res {
-	//var req = ctx.request.Reader
 
 	checking := false
 
@@ -275,6 +274,9 @@ func (ctx *Http) clientHandler() *Res {
 	}
 	if vv, ok := ctx.Setting["validate"].(bool); ok {
 		checking = vv
+	}
+	if vv := ctx.Header("passport"); vv == ark.Config.Name {
+		checking = false //请求通行证
 	}
 
 	cs := ""
