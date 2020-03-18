@@ -36,9 +36,10 @@ func config() *arkConfig {
 
 	var tmp arkConfig
 	err := loading(cfgfile, &tmp)
-	if err == nil {
-		config = &tmp
+	if err != nil {
+		panic("加载配置文件失败")
 	}
+	config = &tmp
 
 	//配置的初始设化，默认值
 	switch config.Mode {

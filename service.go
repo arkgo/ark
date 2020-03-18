@@ -40,8 +40,8 @@ type (
 		Desc     string   `json:"desc"`
 		Alias    []string `json:"alias"`
 		Nullable bool     `json:"nullable"`
-		Args     Params   `json:"args"`
-		Data     Params   `json:"data"`
+		Args     Vars     `json:"args"`
+		Data     Vars     `json:"data"`
 		Setting  Map      `json:"setting"`
 		Action   Any      `json:"-"`
 	}

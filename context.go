@@ -13,6 +13,7 @@ import (
 	"os"
 	"path"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -263,8 +264,7 @@ func (ctx *Http) dataBase(bases ...string) DataBase {
 func (ctx *Http) clientHandler() *Res {
 
 	checking := false
-
-	if ctx.siteConfig.Validate {
+	if ctx.siteConfig.Decode != "" {
 		checking = true
 	}
 
@@ -275,12 +275,12 @@ func (ctx *Http) clientHandler() *Res {
 	if vv, ok := ctx.Setting["validate"].(bool); ok {
 		checking = vv
 	}
-	if vv := ctx.Header("passport"); vv == ark.Config.Name {
-		checking = false //请求通行证
+	if vv := ctx.Header("Debug"); vv == ark.Config.Secret {
+		checking = false //调试通行证
 	}
 
 	cs := ""
-	if vv := ctx.Header("client"); vv != "" {
+	if vv := ctx.Header("Client"); vv != "" {
 		cs = strings.TrimSpace(vv)
 	}
 
@@ -292,23 +292,20 @@ func (ctx *Http) clientHandler() *Res {
 		}
 	}
 
-	// args := Params{
-	// 	"client": Param{Type: "string", Require: true, Decode: coding},
-	// }
-	// data := Map{
-	// 	"client": cs,
-	// }
-	// value := Map{}
-	// err := ark.Basic.Mapping(args, data, value, false, false, ctx)
-	// if err != nil {
-	// 	return Invalid
-	// }
+	args := Vars{
+		"client": Var{Type: "string", Require: true, Decode: ctx.siteConfig.Decode},
+	}
+	data := Map{
+		"client": cs,
+	}
+	value := Map{}
+	err := ark.Basic.Mapping(args, data, value, false, false, ctx)
+	if err != nil {
+		return Invalid
+	}
 
-	//return nil
+	client := value["client"].(string)
 
-	// client := value["client"].(string)
-
-	client := ark.Codec.Decrypt(cs)
 	vals := strings.Split(client, "/")
 	if len(vals) < 7 && checking {
 		//Debug("client", "Length", err, client)
@@ -345,6 +342,27 @@ func (ctx *Http) clientHandler() *Res {
 	if sign != vals[6] && checking {
 		//Debug("ClientSign", ctx.Uri, sign, data["client"], value["client"])
 		return Invalid
+	}
+
+	//时间对比
+	if ctx.siteConfig.Timeout != "" {
+		d, e := util.ParseDuration(ctx.siteConfig.Timeout)
+		if e != nil {
+			//设置的超时格式有问题
+			d = time.Minute * 5
+		}
+		now := time.Now()
+		if vvd, err := strconv.ParseInt(vals[5], 10, 64); err != nil {
+			//时间有问题
+			return Invalid
+		} else {
+			tms := time.Unix(vvd, 0).Add(d)
+			if tms.Unix() < now.Unix() {
+				//失败时间比当前时间小，失败
+				return Invalid
+			}
+		}
+
 	}
 
 	//到这里才成功

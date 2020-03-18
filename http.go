@@ -242,10 +242,10 @@ type (
 		Socket   bool     `json:"socket"`
 		Setting  Map      `json:"setting"`
 
-		Auth Auth   `json:"auth"`
-		Item Item   `json:"item"`
-		Args Params `json:"args"`
-		Data Params `json:"data"`
+		Auth Auth `json:"auth"`
+		Item Item `json:"item"`
+		Args Vars `json:"args"`
+		Data Vars `json:"data"`
 
 		Routing Routing    `json:"routing"`
 		Action  HttpFunc   `json:"-"`
@@ -601,7 +601,7 @@ func (module *httpModule) Router(name string, config Router, overrides ...bool) 
 				//复制args
 				if methodConfig.Args != nil {
 					if realConfig.Args == nil {
-						realConfig.Args = Params{}
+						realConfig.Args = Vars{}
 					}
 					for k, v := range methodConfig.Args {
 						realConfig.Args[k] = v
@@ -611,7 +611,7 @@ func (module *httpModule) Router(name string, config Router, overrides ...bool) 
 				//复制data
 				if methodConfig.Data != nil {
 					if realConfig.Data == nil {
-						realConfig.Data = Params{}
+						realConfig.Data = Vars{}
 					}
 					for k, v := range methodConfig.Data {
 						realConfig.Data[k] = v
@@ -1502,7 +1502,7 @@ func (module *httpModule) bodyApi(ctx *Http, body httpApiBody) {
 
 	if body.data != nil {
 
-		crypto := ctx.siteConfig.Crypto
+		crypto := ctx.siteConfig.Encode
 		if vv, ok := ctx.Setting["crypto"].(bool); ok && vv == false {
 			crypto = ""
 		}
@@ -1510,8 +1510,12 @@ func (module *httpModule) bodyApi(ctx *Http, body httpApiBody) {
 			crypto = ""
 		}
 
-		tempConfig := Params{
-			"data": Param{
+		if vv := ctx.Header("Debug"); vv == ark.Config.Secret {
+			crypto = ""
+		}
+
+		tempConfig := Vars{
+			"data": Var{
 				Type: "json", Require: true, Encode: crypto,
 			},
 		}
@@ -1521,8 +1525,8 @@ func (module *httpModule) bodyApi(ctx *Http, body httpApiBody) {
 
 		//有自定义返回数据类型
 		if ctx.Config.Data != nil {
-			tempConfig = Params{
-				"data": Param{
+			tempConfig = Vars{
+				"data": Var{
 					Type: "json", Require: true, Encode: crypto,
 					Children: ctx.Config.Data,
 				},
@@ -1697,7 +1701,7 @@ func (module *httpModule) viewHelpers(ctx *Http) Map {
 		"string": func(key string, args ...Any) string {
 			return ctx.String(key, args...)
 		},
-		"option": func(name, field string, v Any) string {
+		"option": func(name, field string, v Any) Any {
 			value := fmt.Sprintf("%v", v)
 			//多语言支持
 			//key=enum.name.file.value

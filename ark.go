@@ -42,8 +42,9 @@ type (
 		readied, running bool
 	}
 	arkConfig struct {
-		Name string `toml:"name"`
-		Mode string `toml:"mode"`
+		Name   string `toml:"name"`
+		Mode   string `toml:"mode"`
+		Secret string `toml:"secret"`
 
 		Node nodeConfig `toml:"node"`
 

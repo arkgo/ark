@@ -117,8 +117,8 @@ func Register(args ...Any) {
 
 }
 
-func Define(tttt string, require bool, name string, extends ...Map) Param {
-	config := Param{
+func Define(tttt string, require bool, name string, extends ...Map) Var {
+	config := Var{
 		Type: tttt, Require: require, Name: name,
 	}
 
@@ -128,7 +128,7 @@ func Define(tttt string, require bool, name string, extends ...Map) Param {
 		if vv, ok := extend["default"]; ok {
 			config.Default = vv
 		}
-		if vv, ok := extend["children"].(Params); ok {
+		if vv, ok := extend["children"].(Vars); ok {
 			config.Children = vv
 		}
 		if vv, ok := extend["setting"].(Map); ok {
@@ -154,12 +154,12 @@ func Precision(f float64, prec int, rounds ...bool) float64 {
 	return math.Trunc((f)*pow10_n) / pow10_n
 }
 
-func InvokingConfig(offset, limit int64, extends ...Params) Params {
-	config := Params{
-		"offset": Param{
+func InvokingConfig(offset, limit int64, extends ...Vars) Vars {
+	config := Vars{
+		"offset": Var{
 			Type: "int", Require: true, Default: offset, Name: "offset", Desc: "offset",
 		},
-		"limit": Param{
+		"limit": Var{
 			Type: "int", Require: true, Default: limit, Name: "limit", Desc: "limit",
 		},
 	}

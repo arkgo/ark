@@ -107,7 +107,7 @@ func (url *httpUrl) Route(name string, values ...Map) string {
 		return "[no uri here]"
 	}
 
-	argsConfig := Params{}
+	argsConfig := Vars{}
 	if config.Args != nil {
 		for k, v := range config.Args {
 			argsConfig[k] = v

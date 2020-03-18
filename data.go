@@ -103,35 +103,35 @@ type (
 		base string
 	}
 
-	Params map[string]Param
-	Param  struct {
-		Type     string `json:"type"`
-		Require  bool   `json:"require"`
-		Unique   bool   `json:"unique"`
-		Nullable bool   `json:"nullable"`
-		Name     string `json:"name"`
-		Desc     string `json:"desc"`
-		Default  Any    `json:"default"`
-		Setting  Map    `json:"setting"`
-		Children Params `json:"children"`
-		Option   Option `json:"option"`
+	// Vars map[string]Var
+	// Var  struct {
+	// 	Type     string `json:"type"`
+	// 	Require  bool   `json:"require"`
+	// 	Unique   bool   `json:"unique"`
+	// 	Nullable bool   `json:"nullable"`
+	// 	Name     string `json:"name"`
+	// 	Desc     string `json:"desc"`
+	// 	Default  Any    `json:"default"`
+	// 	Setting  Map    `json:"setting"`
+	// 	Children Vars `json:"children"`
+	// 	Option   Option `json:"option"`
 
-		Empty *Res `json:"-"`
-		Error *Res `json:"-"`
+	// 	Empty *Res `json:"-"`
+	// 	Error *Res `json:"-"`
 
-		Encode string        `json:"-"`
-		Decode string        `json:"-"`
-		Valid  TypeValidFunc `json:"-"`
-		Value  TypeValueFunc `json:"-"`
-	}
-	Option = map[string]string
-	Table  struct {
+	// 	Encode string        `json:"-"`
+	// 	Decode string        `json:"-"`
+	// 	Valid  TypeValidFunc `json:"-"`
+	// 	Value  TypeValueFunc `json:"-"`
+	// }
+	// Option = map[string]string
+	Table struct {
 		Name   string `json:"name"`
 		Desc   string `json:"desc"`
 		Schema string `json:"schema"`
 		Table  string `json:"table"`
 		Key    string `json:"key"`
-		Fields Params `json:"fields"`
+		Fields Vars   `json:"fields"`
 	}
 	View struct {
 		Name   string `json:"name"`
@@ -139,14 +139,14 @@ type (
 		Schema string `json:"schema"`
 		View   string `json:"view"`
 		Key    string `json:"key"`
-		Fields Params `json:"fields"`
+		Fields Vars   `json:"fields"`
 	}
 	Model struct {
 		Name   string `json:"name"`
 		Desc   string `json:"desc"`
 		Model  string `json:"model"`
 		Key    string `json:"key"`
-		Fields Params `json:"fields"`
+		Fields Vars   `json:"fields"`
 	}
 )
 
@@ -333,9 +333,9 @@ func (module *dataModule) ModelConfig(name string) *Model {
 	return nil
 }
 
-func (module *dataModule) Field(name string, field string, extends ...Map) Param {
+func (module *dataModule) Field(name string, field string, extends ...Map) Var {
 	fields := module.Fields(name, []string{field})
-	var config Param
+	var config Var
 	if vv, ok := fields[field]; ok {
 		config = vv
 	}
@@ -352,7 +352,7 @@ func (module *dataModule) Field(name string, field string, extends ...Map) Param
 		if vv, ok := mmm["option"]; ok {
 			if vv == nil {
 				config.Option = nil
-			} else if vvo, ok := vv.(Option); ok {
+			} else if vvo, ok := vv.(Map); ok {
 				config.Option = vvo
 			}
 		}
@@ -360,7 +360,7 @@ func (module *dataModule) Field(name string, field string, extends ...Map) Param
 
 	return config
 }
-func (module *dataModule) Fields(name string, keys []string, exts ...Params) Params {
+func (module *dataModule) Fields(name string, keys []string, exts ...Vars) Vars {
 	if _, ok := module.tables[name]; ok {
 		return module.TableFields(name, keys, exts...)
 	} else if _, ok := module.views[name]; ok {
@@ -368,11 +368,11 @@ func (module *dataModule) Fields(name string, keys []string, exts ...Params) Par
 	} else if _, ok := module.models[name]; ok {
 		return module.ModelFields(name, keys, exts...)
 	} else {
-		return Params{}
+		return Vars{}
 	}
 }
-func (module *dataModule) TableFields(name string, keys []string, exts ...Params) Params {
-	fields := Params{}
+func (module *dataModule) TableFields(name string, keys []string, exts ...Vars) Vars {
+	fields := Vars{}
 	if config, ok := module.tables[name]; ok && config.Fields != nil {
 		//空数组一个也不返
 		if keys == nil {
@@ -397,8 +397,8 @@ func (module *dataModule) TableFields(name string, keys []string, exts ...Params
 
 	return fields
 }
-func (module *dataModule) ViewFields(name string, keys []string, exts ...Params) Params {
-	fields := Params{}
+func (module *dataModule) ViewFields(name string, keys []string, exts ...Vars) Vars {
+	fields := Vars{}
 	if config, ok := module.views[name]; ok && config.Fields != nil {
 		//空数组一个也不返
 		if keys == nil {
@@ -423,8 +423,8 @@ func (module *dataModule) ViewFields(name string, keys []string, exts ...Params)
 
 	return fields
 }
-func (module *dataModule) ModelFields(name string, keys []string, exts ...Params) Params {
-	fields := Params{}
+func (module *dataModule) ModelFields(name string, keys []string, exts ...Vars) Vars {
+	fields := Vars{}
 	if config, ok := module.models[name]; ok && config.Fields != nil {
 		//空数组一个也不返
 		if keys == nil {
@@ -448,7 +448,7 @@ func (module *dataModule) ModelFields(name string, keys []string, exts ...Params
 
 	return fields
 }
-func (module *dataModule) Option(name, field, key string) string {
+func (module *dataModule) Option(name, field, key string) Any {
 	enums := ark.Data.Options(name, field)
 	if vv, ok := enums[key]; ok {
 		return vv
@@ -456,7 +456,7 @@ func (module *dataModule) Option(name, field, key string) string {
 	return key
 }
 
-func (module *dataModule) Options(name, field string) Option {
+func (module *dataModule) Options(name, field string) Map {
 	if _, ok := module.tables[name]; ok {
 		return module.TableOptions(name, field)
 	} else if _, ok := module.views[name]; ok {
@@ -464,11 +464,11 @@ func (module *dataModule) Options(name, field string) Option {
 	} else if _, ok := module.models[name]; ok {
 		return module.ModelOptions(name, field)
 	} else {
-		return Option{}
+		return Map{}
 	}
 }
-func (module *dataModule) TableOptions(name, field string) Option {
-	options := Option{}
+func (module *dataModule) TableOptions(name, field string) Map {
+	options := Map{}
 	if config, ok := module.tables[name]; ok && config.Fields != nil {
 		if field, ok := config.Fields[field]; ok {
 			if field.Option != nil {
@@ -480,8 +480,8 @@ func (module *dataModule) TableOptions(name, field string) Option {
 	}
 	return options
 }
-func (module *dataModule) ViewOptions(name, field string) Option {
-	options := Option{}
+func (module *dataModule) ViewOptions(name, field string) Map {
+	options := Map{}
 	if config, ok := module.views[name]; ok && config.Fields != nil {
 		if field, ok := config.Fields[field]; ok {
 			if field.Option != nil {
@@ -493,8 +493,8 @@ func (module *dataModule) ViewOptions(name, field string) Option {
 	}
 	return options
 }
-func (module *dataModule) ModelOptions(name, field string) Option {
-	options := Option{}
+func (module *dataModule) ModelOptions(name, field string) Map {
+	options := Map{}
 	if config, ok := module.models[name]; ok && config.Fields != nil {
 		if field, ok := config.Fields[field]; ok {
 			if field.Option != nil {
@@ -870,13 +870,16 @@ func GetModel(name string) *Model {
 	return ark.Data.ModelConfig(name)
 }
 
-func Field(name string, field string, exts ...Map) Param {
+func Field(name string, field string, exts ...Map) Var {
 	return ark.Data.Field(name, field, exts...)
 }
-func Fields(name string, keys []string, exts ...Params) Params {
+func Fields(name string, keys []string, exts ...Vars) Vars {
 	return ark.Data.Fields(name, keys, exts...)
 }
-func Options(name string, field string) Option {
+func Option(name string, field string, key string) Any {
+	return ark.Data.Option(name, field, key)
+}
+func Options(name string, field string) Map {
 	return ark.Data.Options(name, field)
 }
 

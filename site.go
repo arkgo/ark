@@ -20,9 +20,10 @@ type (
 		Expiry  string `toml:"expiry"`
 		MaxAge  string `toml:"maxage"`
 
-		Crypto   string `toml:"crypto"`
-		Validate bool   `toml:"validate"`
-		Format   string `toml:"format"`
+		Encode  string `toml:"encode"`
+		Decode  string `toml:"decode"`
+		Format  string `toml:"format"`
+		Timeout string `toml:"timeout"`
 
 		Setting Map `toml:"setting"`
 	}

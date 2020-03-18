@@ -59,8 +59,8 @@ type (
 		Expressions []string `json:"expressions"`
 	}
 
-	TypeValidFunc func(Any, Param) bool
-	TypeValueFunc func(Any, Param) Any
+	TypeValidFunc func(Any, Var) bool
+	TypeValueFunc func(Any, Var) Any
 	Type          struct {
 		Name    string        `json:"name"`
 		Desc    string        `json:"desc"`
@@ -70,8 +70,8 @@ type (
 		Value   TypeValueFunc `json:"-"`
 	}
 
-	CryptoEncodeFunc func(Any, Param) Any
-	CryptoDecodeFunc func(Any, Param) Any
+	CryptoEncodeFunc func(Any, Var) Any
+	CryptoDecodeFunc func(Any, Var) Any
 	Crypto           struct {
 		Name    string           `json:"name"`
 		Desc    string           `json:"desc"`
@@ -508,10 +508,10 @@ func (module *basicModule) Crypto(name string, config Crypto, overrides ...bool)
 	}
 }
 
-func (module *basicModule) typeDefaultValid(value Any, config Param) bool {
+func (module *basicModule) typeDefaultValid(value Any, config Var) bool {
 	return module.Match(fmt.Sprintf("%s", value), config.Type)
 }
-func (module *basicModule) typeDefaultValue(value Any, config Param) Any {
+func (module *basicModule) typeDefaultValue(value Any, config Var) Any {
 	return fmt.Sprintf("%s", value)
 }
 
@@ -535,10 +535,10 @@ func (module *basicModule) typeMethod(name string) (TypeValidFunc, TypeValueFunc
 	return module.typeValid(name), module.typeValue(name)
 }
 
-func (module *basicModule) cryptoDefaultEncode(value Any, config Param) Any {
+func (module *basicModule) cryptoDefaultEncode(value Any, config Var) Any {
 	return value
 }
-func (module *basicModule) cryptoDefaultDecode(value Any, config Param) Any {
+func (module *basicModule) cryptoDefaultDecode(value Any, config Var) Any {
 	return value
 }
 
@@ -997,7 +997,7 @@ func (module *basicModule) cryptoDecode(name string) CryptoDecodeFunc {
 // 	//遍历配置	end
 // }
 
-func (module *basicModule) Mapping(config Params, data Map, value Map, argn bool, pass bool, ctxs ...context) *Res {
+func (module *basicModule) Mapping(config Vars, data Map, value Map, argn bool, pass bool, ctxs ...context) *Res {
 	var ctx context
 	if len(ctxs) > 0 {
 		ctx = ctxs[0]
@@ -1494,6 +1494,6 @@ func Types() map[string]Type {
 func Cryptos() map[string]Crypto {
 	return ark.Basic.Cryptos()
 }
-func Mapping(config Params, data Map, value Map, argn bool, pass bool, ctxs ...context) *Res {
+func Mapping(config Vars, data Map, value Map, argn bool, pass bool, ctxs ...context) *Res {
 	return ark.Basic.Mapping(config, data, value, argn, pass, ctxs...)
 }
