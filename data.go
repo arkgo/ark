@@ -391,7 +391,11 @@ func (module *dataModule) TableFields(name string, keys []string, exts ...Vars) 
 
 	if len(exts) > 0 {
 		for k, v := range exts[0] {
-			fields[k] = v
+			if v.Nil() {
+				delete(fields, k)
+			} else {
+				fields[k] = v
+			}
 		}
 	}
 

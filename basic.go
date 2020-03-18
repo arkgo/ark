@@ -1042,6 +1042,11 @@ func (module *basicModule) Mapping(config Vars, data Map, value Map, argn bool, 
 		fieldAuto, fieldJson := fieldConfig.Default, fieldConfig.Children
 		//_, fieldEmpty = data[fieldName]
 
+		// if argn {
+		//	//这里应该是可以的，相当于，所有字段为nullable，表示，可以不存在
+		// 	fieldEmpty = true
+		// }
+
 		//trees := append(tree, fieldName)
 		//fmt.Printf("trees=%v". strings.Join(trees, "."))
 

@@ -253,6 +253,12 @@ func (lib *serviceLibrary) Register(name string, config Method, overrides ...boo
 }
 
 //------------------- Service 方法 --------------------
+func (sv *Service) Zone() *time.Location {
+	return sv.ctx.Zone()
+}
+func (sv *Service) Lang() string {
+	return sv.ctx.Lang()
+}
 
 func (sv *Service) Result() *Res {
 	return sv.ctx.Result()

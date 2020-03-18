@@ -171,3 +171,16 @@ func InvokingConfig(offset, limit int64, extends ...Vars) Vars {
 	}
 	return config
 }
+
+func VarExtend(config Vars, extends ...Vars) Vars {
+	if len(extends) > 0 {
+		for k, v := range extends[0] {
+			if v.Nil() {
+				delete(config, k)
+			} else {
+				config[k] = v
+			}
+		}
+	}
+	return config
+}

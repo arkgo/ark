@@ -1201,7 +1201,7 @@ func (ctx *Http) Goback() {
 	url := ctx.Url.Back()
 	ctx.Goto(url)
 }
-func (ctx *Http) Text(text Any, types ...string) {
+func (ctx *Http) Text(text Any, codes ...int) {
 	//如果已经存在了httpDownBody，那还要把原有的reader关闭
 	//释放资源， 当然在file.base.close中也应该关闭已经打开的资源
 	if vv, ok := ctx.Body.(httpBufferBody); ok {
@@ -1217,11 +1217,19 @@ func (ctx *Http) Text(text Any, types ...string) {
 		real = fmt.Sprintf("%v", text)
 	}
 
-	if len(types) > 0 {
-		ctx.Type = types[0]
+	//if len(types) > 0 {
+	//	ctx.Type = types[0]
+	//} else {
+	//	ctx.Type = "text"
+	//}
+
+	if len(codes) > 0 {
+		ctx.Code = codes[0]
 	} else {
-		ctx.Type = "text"
+		ctx.Code = http.StatusOK
 	}
+
+	ctx.Type = "text"
 	ctx.Body = httpTextBody{real}
 }
 func (ctx *Http) Html(html string, codes ...int) {
@@ -1233,7 +1241,10 @@ func (ctx *Http) Html(html string, codes ...int) {
 
 	if len(codes) > 0 {
 		ctx.Code = codes[0]
+	} else {
+		ctx.Code = http.StatusOK
 	}
+
 	ctx.Type = "html"
 	ctx.Body = httpHtmlBody{html}
 }
@@ -1246,7 +1257,10 @@ func (ctx *Http) Script(script string, codes ...int) {
 
 	if len(codes) > 0 {
 		ctx.Code = codes[0]
+	} else {
+		ctx.Code = http.StatusOK
 	}
+
 	ctx.Type = "script"
 	ctx.Body = httpScriptBody{script}
 }
@@ -1259,7 +1273,10 @@ func (ctx *Http) Json(json Any, codes ...int) {
 
 	if len(codes) > 0 {
 		ctx.Code = codes[0]
+	} else {
+		ctx.Code = http.StatusOK
 	}
+
 	ctx.Type = "json"
 	ctx.Body = httpJsonBody{json}
 }
@@ -1285,7 +1302,10 @@ func (ctx *Http) Xml(xml Any, codes ...int) {
 
 	if len(codes) > 0 {
 		ctx.Code = codes[0]
+	} else {
+		ctx.Code = http.StatusOK
 	}
+
 	ctx.Type = "xml"
 	ctx.Body = httpXmlBody{xml}
 }
@@ -1306,6 +1326,9 @@ func (ctx *Http) File(file string, mimeType string, names ...string) {
 	} else {
 		ctx.Type = "file"
 	}
+
+	ctx.Code = http.StatusOK
+
 	ctx.Body = httpFileBody{file, name}
 }
 
@@ -1465,8 +1488,7 @@ func (ctx *Http) Answer(res *Res, args ...Map) {
 	if code == 0 {
 		ctx.Code = http.StatusOK
 	} else {
-		//考虑到，默认也200
-		//ctx.Code = http.StatusInternalServerError
+		ctx.Code = http.StatusInternalServerError
 	}
 
 	var data Map

@@ -580,6 +580,11 @@ func (module *httpModule) Router(name string, config Router, overrides ...bool) 
 				realName := fmt.Sprintf("%s.%s", routerName, method)
 				realConfig := routerConfig //从顶级复制
 
+				//相关参数
+				realConfig.Method = method
+				realConfig.Socket = methodConfig.Socket
+				realConfig.Nullable = methodConfig.Nullable
+
 				//复制子级的定义
 				if methodConfig.Name != "" {
 					realConfig.Name = methodConfig.Name
@@ -659,9 +664,6 @@ func (module *httpModule) Router(name string, config Router, overrides ...bool) 
 				if methodConfig.Denied != nil {
 					realConfig.Denied = methodConfig.Denied
 				}
-
-				//相关参数
-				realConfig.Method = method
 
 				//加入列表
 				routers[realName] = realConfig
@@ -1294,8 +1296,6 @@ func (module *httpModule) execute(ctx *Http) {
 	if funcs, ok := module.routerActions[ctx.Name]; ok {
 		ctx.next(funcs...)
 	}
-	// funcs := ctx.funcing("action")
-	// ctx.next(funcs...)
 
 	ctx.Next()
 }
@@ -1318,7 +1318,8 @@ func (module *httpModule) response(ctx *Http) {
 
 //最终响应
 func (module *httpModule) body(ctx *Http) {
-	if ctx.Code == 0 {
+
+	if ctx.Code <= 0 {
 		ctx.Code = http.StatusOK
 	}
 
