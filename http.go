@@ -1607,8 +1607,8 @@ func (module *httpModule) bodyView(ctx *Http, body httpViewBody) {
 
 	viewdata := Map{
 		"args": ctx.Args, "auth": ctx.Auth,
-		"stting": Setting, "local": ctx.Local,
-		"data": ctx.Data, "model": body.model,
+		"config": ctx.siteConfig, "setting": Setting,
+		"local": ctx.Local, "data": ctx.Data, "model": body.model,
 	}
 
 	helpers := module.viewHelpers(ctx)
