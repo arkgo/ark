@@ -679,13 +679,17 @@ func (module *httpModule) Router(name string, config Router, overrides ...bool) 
 
 		//复制uri到uris，默认使用uris
 		if val.Uris == nil {
-			val.Uris = make([]string, 1)
+			val.Uris = make([]string, 0)
+		}
+		if val.Uri != "" {
 			val.Uris = append(val.Uris, val.Uri)
 			val.Uri = ""
 		}
 		//复制action
 		if val.Actions == nil {
-			val.Actions = make([]HttpFunc, 1)
+			val.Actions = make([]HttpFunc, 0)
+		}
+		if val.Action != nil {
 			val.Actions = append(val.Actions, val.Action)
 			val.Action = nil
 		}
