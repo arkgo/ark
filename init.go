@@ -26,7 +26,6 @@ func loading(file string, out Any) error {
 func config() *arkConfig {
 	config := &arkConfig{
 		Name: "ark", Mode: "dev",
-		hosts: make(map[string]string),
 	}
 
 	cfgfile := "config.toml"
@@ -272,6 +271,7 @@ func config() *arkConfig {
 	}
 
 	//http默认驱动
+	config.hosts = make(map[string]string)
 	for k, v := range config.Site {
 		if v.Charset == "" {
 			v.Charset = config.Http.Charset
@@ -289,7 +289,7 @@ func config() *arkConfig {
 			v.MaxAge = config.Http.MaxAge
 		}
 		if v.Hosts == nil {
-			v.Hosts = []string{}
+			v.Hosts = make([]string, 0)
 		}
 		if v.Host != "" {
 			if strings.Contains(v.Host, ".") {
@@ -297,16 +297,14 @@ func config() *arkConfig {
 			} else {
 				v.Hosts = append(v.Hosts, v.Host+"."+v.Domain)
 			}
-		} else {
-			if len(v.Hosts) == 0 {
-				v.Hosts = append(v.Hosts, k+"."+v.Domain)
-			}
 		}
 
 		//还没有设置域名，自动来一波
 		if len(v.Hosts) == 0 && v.Domain != "" {
 			v.Hosts = append(v.Hosts, k+"."+v.Domain)
 		}
+
+
 		//待处理，这个权重是老代码复制，暂时不知道干什么用，
 		if v.Weights == nil || len(v.Weights) == 0 {
 			v.Weights = []int{}
@@ -320,7 +318,6 @@ func config() *arkConfig {
 		}
 
 		//记录http的所有域名
-		config.hosts = make(map[string]string)
 		for _, host := range v.Hosts {
 			config.hosts[host] = k
 		}

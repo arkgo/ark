@@ -1163,18 +1163,6 @@ func (module *httpModule) serve(thread HttpThread) {
 		}
 	}
 
-	//request拦截器，加入调用列表
-	if funcs, ok := module.requestActions[ctx.Site]; ok {
-		ctx.next(funcs...)
-	}
-	ctx.next(module.request)
-	ctx.next(module.execute)
-
-	//开始执行
-	ctx.Next()
-}
-
-func (module *httpModule) request(ctx *Http) {
 	now := time.Now()
 
 	//请求id
@@ -1204,6 +1192,40 @@ func (module *httpModule) request(ctx *Http) {
 		}
 	}
 
+	// 上面执行前置处理 ---------------------------------
+
+	//request拦截器，加入调用列表
+	if funcs, ok := module.requestActions[ctx.Site]; ok {
+		ctx.next(funcs...)
+	}
+
+	ctx.next(module.request)
+	ctx.next(module.execute)
+
+	//开始执行
+	ctx.Next()
+
+	// 下面执行后 ---------------------------------
+
+	//session写回去
+	if ctx.sessional(false) {
+		//这样节省SESSION的资源
+		if ctx.siteConfig.Expiry != "" {
+			td, err := util.ParseDuration(ctx.siteConfig.Expiry)
+			if err == nil {
+				ark.Session.Write(ctx.Id, ctx.sessions, td)
+			} else {
+				ark.Session.Write(ctx.Id, ctx.sessions)
+			}
+		} else {
+			ark.Session.Write(ctx.Id, ctx.sessions)
+		}
+	}
+
+	module.response(ctx)
+}
+
+func (module *httpModule) request(ctx *Http) {
 	//404么
 	if ctx.Name == "" {
 
@@ -1257,23 +1279,6 @@ func (module *httpModule) request(ctx *Http) {
 			}
 		}
 	}
-
-	//session写回去
-	if ctx.sessional(false) {
-		//这样节省SESSION的资源
-		if ctx.siteConfig.Expiry != "" {
-			td, err := util.ParseDuration(ctx.siteConfig.Expiry)
-			if err == nil {
-				ark.Session.Write(ctx.Id, ctx.sessions, td)
-			} else {
-				ark.Session.Write(ctx.Id, ctx.sessions)
-			}
-		} else {
-			ark.Session.Write(ctx.Id, ctx.sessions)
-		}
-	}
-
-	module.response(ctx)
 }
 
 //事件执行，调用action的地方
@@ -1340,6 +1345,7 @@ func (module *httpModule) body(ctx *Http) {
 
 		http.SetCookie(ctx.response, &v)
 	}
+
 	for k, v := range ctx.headers {
 		ctx.response.Header().Set(k, v)
 	}

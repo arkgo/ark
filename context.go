@@ -123,6 +123,7 @@ func httpContext(thread HttpThread) *Http {
 			ctx.Host = hosts[0]
 		}
 	}
+
 	if ctx.Site == "" {
 		if site, ok := ark.Config.hosts[ctx.Host]; ok {
 			ctx.Site = site
@@ -782,6 +783,7 @@ func (ctx *Http) formHandler() *Res {
 func (ctx *Http) argsHandler() *Res {
 
 	if ctx.Config.Args != nil {
+
 		argsValue := Map{}
 		err := ark.Basic.Mapping(ctx.Config.Args, ctx.Value, argsValue, ctx.Config.Nullable, false, ctx)
 		if err != nil {

@@ -134,24 +134,25 @@ func (module *loggerModule) formating(args []Any) (string, []Any) {
 func (module *loggerModule) tostring(args ...Any) string {
 	vs := []string{}
 	for _, v := range args {
-		s := ""
-		if m, ok := v.(Map); ok {
-			vs := []string{}
-			for k, v := range m {
-				vs = append(vs, k, fmt.Sprintf("%v", v))
-			}
-			s = strings.Join(vs, " ")
-		} else if ms, ok := v.([]Map); ok {
-			vss := []string{}
-			for _, m := range ms {
-				for k, v := range m {
-					vss = append(vss, k, fmt.Sprintf("%v", v))
-				}
-			}
-			s = strings.Join(vs, " ")
-		} else {
-			s = fmt.Sprintf("%v", v)
-		}
+		// s := ""
+		// if m, ok := v.(Map); ok {
+		// 	vs := []string{}
+		// 	for k, v := range m {
+		// 		vs = append(vs, k, fmt.Sprintf("%v", v))
+		// 	}
+		// 	s = strings.Join(vs, " ")
+		// } else if ms, ok := v.([]Map); ok {
+		// 	vss := []string{}
+		// 	for _, m := range ms {
+		// 		for k, v := range m {
+		// 			vss = append(vss, k, fmt.Sprintf("%v", v))
+		// 		}
+		// 	}
+		// 	s = strings.Join(vs, " ")
+		// } else {
+		// 	s = fmt.Sprintf("%v", v)
+		// }
+		s := fmt.Sprintf("%v", v)
 		vs = append(vs, s)
 	}
 	return strings.Join(vs, " ")
