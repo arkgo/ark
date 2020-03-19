@@ -662,7 +662,7 @@ func (module *storeModule) safeBrowse(code string, name string, id, ip string, e
 	// })
 
 }
-func (module *storeModule) Preview(code string, w, h, t int64, id, ip string, expires ...time.Duration) string {
+func (module *storeModule) Preview(code string, w, h, t int64, expires ...time.Duration) string {
 	return module.safePreview(code, w, h, t, "", "", expires...)
 }
 func (module *storeModule) safePreview(code string, w, h, t int64, id, ip string, expires ...time.Duration) string {
@@ -735,6 +735,17 @@ func StatFile(file string) Map {
 func Storage(target string) (File, Files, error) {
 	return ark.Store.Storage(target)
 }
+func Remove(code string) error {
+	return ark.Store.Remove(code)
+}
+
+func Browse(code, name string, expires ...time.Duration) string {
+	return ark.Store.Browse(code, name, expires...)
+}
+func Preview(code string, w, h, t int64, expires ...time.Duration) string {
+	return ark.Store.Preview(code, w, h, t, expires...)
+}
+
 func Upload(target string, metadata Map, bases ...string) (File, Files, error) {
 	return ark.Store.Upload(target, metadata, bases...)
 }
