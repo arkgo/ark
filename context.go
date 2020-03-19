@@ -293,6 +293,8 @@ func (ctx *Http) clientHandler() *Res {
 		}
 	}
 
+	//eses := ark.Codec.Decrypt(cs)
+
 	args := Vars{
 		"client": Var{Type: "string", Require: true, Decode: ctx.siteConfig.Decode},
 	}
@@ -308,9 +310,12 @@ func (ctx *Http) clientHandler() *Res {
 	client := value["client"].(string)
 
 	vals := strings.Split(client, "/")
-	if len(vals) < 7 && checking {
+	if len(vals) < 7 {
 		//Debug("client", "Length", err, client)
-		return Invalid
+		if checking {
+			return Invalid
+		}
+		return nil
 	}
 
 	//保存参数

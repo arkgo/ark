@@ -1658,7 +1658,7 @@ func (module *httpModule) viewHelpers(ctx *Http) Map {
 		"backurl":  ctx.Url.Back,
 		"lasturl":  ctx.Url.Last,
 		"siteurl": func(name string, paths ...string) string {
-			path := "/"
+			path := ""
 			if len(paths) > 0 {
 				path = paths[0]
 			}
