@@ -270,7 +270,7 @@ type (
 	}
 	Item   map[string]Entity
 	Entity struct {
-		Value   string `json:"value"`
+		Args    string `json:"args"`
 		Require bool   `json:"require"`
 		Base    string `json:"base"`
 		Table   string `json:"table"`
@@ -1248,6 +1248,7 @@ func (module *httpModule) request(ctx *Http) {
 		if file != "" {
 			ctx.File(file, "")
 		} else {
+
 			ctx.Found()
 		}
 

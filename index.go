@@ -164,12 +164,7 @@ func InvokingConfig(offset, limit int64, extends ...Vars) Vars {
 		},
 	}
 
-	if len(extends) > 0 {
-		for k, v := range extends[0] {
-			config[k] = v
-		}
-	}
-	return config
+	return VarExtend(config, extends...)
 }
 
 func VarExtend(config Vars, extends ...Vars) Vars {

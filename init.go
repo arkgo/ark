@@ -109,10 +109,10 @@ func config() *arkConfig {
 		if e == nil {
 			config.Codec.begin = t.UnixNano()
 		} else {
-			config.Codec.begin = time.Date(2020, 3, 1, 0, 0, 0, 0, time.Local).UnixNano()
+			config.Codec.begin = time.Date(2020, 3, 10, 0, 0, 0, 0, time.Local).UnixNano()
 		}
 	} else {
-		config.Codec.begin = time.Date(2020, 3, 1, 0, 0, 0, 0, time.Local).UnixNano()
+		config.Codec.begin = time.Date(2020, 3, 10, 0, 0, 0, 0, time.Local).UnixNano()
 	}
 	if config.Codec.TimeBits <= 0 {
 		config.Codec.TimeBits = 43 //41位=毫秒，约69年可用，42=138年，43=276年，44位=552年
@@ -303,7 +303,6 @@ func config() *arkConfig {
 		if len(v.Hosts) == 0 && v.Domain != "" {
 			v.Hosts = append(v.Hosts, k+"."+v.Domain)
 		}
-
 
 		//待处理，这个权重是老代码复制，暂时不知道干什么用，
 		if v.Weights == nil || len(v.Weights) == 0 {

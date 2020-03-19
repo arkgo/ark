@@ -875,10 +875,16 @@ func (ctx *Http) itemHandler() *Res {
 			//}
 
 			realKey := "id"
-			if config.Value != "" {
-				realKey = config.Value
+			if config.Args != "" {
+				realKey = config.Args
 			}
-			realVal := ctx.Value[realKey]
+			var realVal Any
+			if vv, ok := ctx.Args[realKey]; ok {
+				realVal = vv
+			}
+			if vv, ok := ctx.Value[realKey]; ok {
+				realVal = vv
+			}
 
 			if realVal == nil && config.Require {
 				if config.Empty != nil {
@@ -1225,7 +1231,8 @@ func (ctx *Http) Text(text Any, codes ...int) {
 
 	if len(codes) > 0 {
 		ctx.Code = codes[0]
-	} else {
+	}
+	if ctx.Code <= 0 {
 		ctx.Code = http.StatusOK
 	}
 
@@ -1241,7 +1248,8 @@ func (ctx *Http) Html(html string, codes ...int) {
 
 	if len(codes) > 0 {
 		ctx.Code = codes[0]
-	} else {
+	}
+	if ctx.Code <= 0 {
 		ctx.Code = http.StatusOK
 	}
 
@@ -1257,7 +1265,8 @@ func (ctx *Http) Script(script string, codes ...int) {
 
 	if len(codes) > 0 {
 		ctx.Code = codes[0]
-	} else {
+	}
+	if ctx.Code <= 0 {
 		ctx.Code = http.StatusOK
 	}
 
@@ -1273,7 +1282,8 @@ func (ctx *Http) Json(json Any, codes ...int) {
 
 	if len(codes) > 0 {
 		ctx.Code = codes[0]
-	} else {
+	}
+	if ctx.Code <= 0 {
 		ctx.Code = http.StatusOK
 	}
 
@@ -1290,6 +1300,10 @@ func (ctx *Http) Jsonp(callback string, json Any, codes ...int) {
 	if len(codes) > 0 {
 		ctx.Code = codes[0]
 	}
+	if ctx.Code <= 0 {
+		ctx.Code = http.StatusOK
+	}
+
 	ctx.Type = "jsonp"
 	ctx.Body = httpJsonpBody{json, callback}
 }
@@ -1302,7 +1316,8 @@ func (ctx *Http) Xml(xml Any, codes ...int) {
 
 	if len(codes) > 0 {
 		ctx.Code = codes[0]
-	} else {
+	}
+	if ctx.Code <= 0 {
 		ctx.Code = http.StatusOK
 	}
 
@@ -1327,7 +1342,9 @@ func (ctx *Http) File(file string, mimeType string, names ...string) {
 		ctx.Type = "file"
 	}
 
-	ctx.Code = http.StatusOK
+	if ctx.Code <= 0 {
+		ctx.Code = http.StatusOK
+	}
 
 	ctx.Body = httpFileBody{file, name}
 }
@@ -1344,7 +1361,10 @@ func (ctx *Http) Buffer(rd io.ReadCloser, mimeType string, names ...string) {
 		name = names[0]
 	}
 
-	ctx.Code = http.StatusOK
+	if ctx.Code <= 0 {
+		ctx.Code = http.StatusOK
+	}
+
 	if mimeType != "" {
 		ctx.Type = mimeType
 	} else {
@@ -1359,7 +1379,10 @@ func (ctx *Http) Down(bytes []byte, mimeType string, names ...string) {
 		vv.buffer.Close()
 	}
 
-	ctx.Code = http.StatusOK
+	if ctx.Code <= 0 {
+		ctx.Code = http.StatusOK
+	}
+
 	if mimeType != "" {
 		ctx.Type = mimeType
 	} else {
@@ -1377,6 +1400,10 @@ func (ctx *Http) View(view string, types ...string) {
 	//释放资源， 当然在file.base.close中也应该关闭已经打开的资源
 	if vv, ok := ctx.Body.(httpBufferBody); ok {
 		vv.buffer.Close()
+	}
+
+	if ctx.Code <= 0 {
+		ctx.Code = http.StatusOK
 	}
 
 	ctx.Type = "html"
@@ -1423,14 +1450,13 @@ func (ctx *Http) Alert(res *Res, urls ...string) {
 		vv.buffer.Close()
 	}
 
-	code := ark.Basic.Code(res.Text, res.Code)
+	// code := ark.Basic.Code(res.Text, res.Code)
 	text := ctx.String(res.Text, res.Args...)
 
-	if code == 0 {
+	if res.OK() {
 		ctx.Code = http.StatusOK
 	} else {
-		//考虑到默认也200
-		//ctx.Code = http.StatusInternalServerError
+		ctx.Code = http.StatusInternalServerError
 	}
 
 	if len(urls) > 0 {
@@ -1449,8 +1475,7 @@ func (ctx *Http) Show(res *Res, urls ...string) {
 	if res.OK() {
 		ctx.Code = http.StatusOK
 	} else {
-		//考虑默认200
-		//ctx.Code = http.StatusInternalServerError
+		ctx.Code = http.StatusInternalServerError
 	}
 
 	m := Map{
@@ -1485,7 +1510,7 @@ func (ctx *Http) Answer(res *Res, args ...Map) {
 		text = ctx.String(res.Text, res.Args...)
 	}
 
-	if code == 0 {
+	if res.OK() {
 		ctx.Code = http.StatusOK
 	} else {
 		ctx.Code = http.StatusInternalServerError

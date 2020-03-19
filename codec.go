@@ -25,7 +25,7 @@ type (
 		SeqBits  uint   `toml:"seqBits"`
 	}
 	codecModule struct {
-		config     codecConfig
+		// config     codecConfig
 		fastid     *fastid.FastID
 		textCoder  *base64.Encoding
 		digitCoder *hashid.HashID
@@ -214,8 +214,8 @@ func Unmarshal(data []byte, v interface{}) error {
 }
 
 func TextAlphabet() string {
-	return ark.Codec.config.Text
+	return ark.Config.Codec.Text
 }
 func DigitAlphabet() string {
-	return ark.Codec.config.Digit
+	return ark.Config.Codec.Digit
 }

@@ -242,6 +242,18 @@ func (module *serviceModule) Logic(ctx context, name string, settings ...Map) *S
 	return &ServiceLogic{ctx, name, setting}
 }
 
+//获取参数定义
+func (module *serviceModule) Arguments(name string, extends ...Vars) Vars {
+	args := Vars{}
+
+	if config, ok := module.methods[name]; ok {
+		for k, v := range config.Args {
+			args[k] = v
+		}
+	}
+	return VarExtend(args, extends...)
+}
+
 //------------ library ----------------
 
 func (lib *serviceLibrary) Name() string {
@@ -413,20 +425,24 @@ func Library(name string) *serviceLibrary {
 }
 
 //触发执行，异步
+func Arguments(name string, extends ...Vars) Vars {
+	return ark.Service.Arguments(name, extends...)
+}
+
+//直接执行，同步
+func Execute(name string, values ...Map) (Map, *Res) {
+	value := Map{}
+	if len(values) > 0 {
+		value = values[0]
+	}
+	return ark.Service.Invoke(nil, name, value)
+}
+
+//触发执行，异步
 func Trigger(name string, values ...Map) {
 	value := Map{}
 	if len(values) > 0 {
 		value = values[0]
 	}
 	go ark.Service.Invoke(nil, name, value)
-}
-
-//直接执行，同步
-func (module *serviceModule) Execute(name string, values ...Map) (Map, *Res) {
-	value := Map{}
-	if len(values) > 0 {
-		value = values[0]
-	}
-
-	return ark.Service.Invoke(nil, name, value)
 }
