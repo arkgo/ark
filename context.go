@@ -143,20 +143,24 @@ func httpContext(thread HttpThread) *Http {
 		ctx.domain = parts[l-2] + "." + parts[l-1]
 	}
 
-	ctx.Url = &httpUrl{
-		ctx: ctx, req: ctx.request,
-	}
+	ctx.Url = &httpUrl{ ctx }
 
 	return ctx
 }
 
 func (ctx *Http) Charset(charsets ...string) string {
+	if ctx == nil {
+		return UTF8
+	}
 	if len(charsets) > 0 && charsets[0] != "" {
 		ctx.charset = charsets[0]
 	}
 	return ctx.charset
 }
 func (ctx *Http) Lang(langs ...string) string {
+	if ctx == nil {
+		return DEFAULT
+	}
 	if len(langs) > 0 && langs[0] != "" {
 		//待优化：加上配置中的语言判断，否则不修改
 		ctx.lang = langs[0]
@@ -164,6 +168,10 @@ func (ctx *Http) Lang(langs ...string) string {
 	return ctx.lang
 }
 func (ctx *Http) Zone(zones ...*time.Location) *time.Location {
+	if ctx == nil {
+		return time.Local
+	}
+
 	if len(zones) > 0 && zones[0] != nil {
 		ctx.zone = zones[0]
 	}

@@ -311,7 +311,7 @@ func newHttp() *httpModule {
 		deniedHandlers: make(map[string]DeniedHandler),
 		deniedActions:  make(map[string][]HttpFunc),
 
-		url: &httpUrl{},
+		url: &httpUrl{emptyContext()},
 	}
 
 }

@@ -1279,15 +1279,17 @@ func (module *basicModule) Mapping(config Vars, data Map, value Map, argn bool, 
 							//包装值
 							if fieldValueCall != nil {
 								//对时间值做时区处理
-								if ctx != nil && ctx.Zone() != time.Local {
-									if vv, ok := fieldValue.(time.Time); ok {
-										fieldValue = vv.In(ctx.Zone())
-									} else if vvs, ok := fieldValue.([]time.Time); ok {
-										newTimes := []time.Time{}
-										for _, vv := range vvs {
-											newTimes = append(newTimes, vv.In(ctx.Zone()))
+								if ctx != nil {
+									if ctx.Zone() != time.Local {
+										if vv, ok := fieldValue.(time.Time); ok {
+											fieldValue = vv.In(ctx.Zone())
+										} else if vvs, ok := fieldValue.([]time.Time); ok {
+											newTimes := []time.Time{}
+											for _, vv := range vvs {
+												newTimes = append(newTimes, vv.In(ctx.Zone()))
+											}
+											fieldValue = newTimes
 										}
-										fieldValue = newTimes
 									}
 								}
 

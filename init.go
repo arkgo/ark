@@ -13,6 +13,7 @@ import (
 
 func init() {
 	build()
+	builtin()
 }
 
 func loading(file string, out Any) error {
@@ -181,8 +182,11 @@ func config() *arkConfig {
 	if config.File.Cache == "" {
 		config.File.Cache = "store/cache"
 	}
+	if config.File.Site == "" {
+		config.File.Site = "file"
+	}
 	if config.File.Tokens == nil || len(config.File.Tokens) == 0 {
-		config.File.Tokens = []string{"expiry", "address"}
+		config.File.Tokens = []string{"expiry", "address", "session"}
 	}
 
 	for k, c := range config.Store {

@@ -25,6 +25,7 @@ type (
 		Thumbnail string   `toml:"thumbnail"`
 		Cache     string   `toml:"cache"`
 		Expiry    string   `toml:"expiry"`
+		Site      string   `toml:"site"`
 		Tokens    []string `toml:"tokens"`
 		//Hosts		[]string	`toml:"hosts"`
 	}
@@ -247,7 +248,6 @@ func (module *storeModule) Storage(target string) (File, Files, error) {
 
 				file := module.Filing("", hash, file.Name(), file.Size())
 
-				// coding := module.Encode("", ext, hash, file.Size())
 				err := module.storage(source, file)
 				if err != nil {
 					return nil, nil, err
@@ -571,7 +571,7 @@ func (module *storeModule) Stat(file string) Map {
 }
 
 func (module *storeModule) Encode(file *storeFile) string {
-	return Encrypt(fmt.Sprintf("%s\t%s\t%s\t%d", file.conn, file.tttt, file.hash, file.size))
+	return Encrypt(fmt.Sprintf("%s\t%s\t%s\t%d", file.conn, file.hash, file.tttt, file.size))
 }
 func (module *storeModule) Decode(code string) *storeFile {
 	str := ark.Codec.Decrypt(code)
@@ -584,11 +584,10 @@ func (module *storeModule) Decode(code string) *storeFile {
 		return nil
 	}
 
-	//Base: args[0], Type: args[1], Hash: args[2], Size: 0
 	file := &storeFile{}
 	file.conn = args[0]
-	file.tttt = args[1]
-	file.hash = args[2]
+	file.hash = args[1]
+	file.tttt = args[2]
 	file.size = 0
 	if vv, err := strconv.ParseInt(args[3], 10, 64); err == nil {
 		file.size = vv
@@ -644,22 +643,23 @@ func (module *storeModule) safeBrowse(code string, name string, id, ip string, e
 		mod := deadline % 5
 		deadline += (5 - mod) + 5
 	}
-	// tokens := []int64{
-	// 	0, deadline, Dehash(id), util.Ip2Num(ip),
-	// }
 
-	// token := Enhashs(tokens)
+	tokens := []int64{
+		BROWSE_TOKEN, deadline, Dehash(id), util.Ip2Num(ip),
+	}
 
-	// ext := "x"
-	// if coding.Type != "" {
-	// 	ext = coding.Type
-	// }
+	token := Enhashs(tokens)
 
-	return ""
+	ext := "x"
+	if coding.Type() != "" {
+		ext = coding.Type()
+	}
 
-	// return Route("file.browse", Map{
-	// 	"{code}": code, "{ext}": ext, "token": token, "name": name,
-	// })
+	browse := ark.Config.File.Site + "." + "browse"
+
+	return Route(browse, Map{
+		"{code}": code, "{ext}": ext, "token": token, "name": name,
+	})
 
 }
 func (module *storeModule) Preview(code string, w, h, t int64, expires ...time.Duration) string {
@@ -707,21 +707,21 @@ func (module *storeModule) safePreview(code string, w, h, t int64, id, ip string
 		deadline += (5 - mod) + 5
 	}
 
-	// tokens := []int64{
-	// 	1, deadline, Dehash(id), util.Ip2Num(ip),
+	tokens := []int64{
+		PREVIEW_TOKEN, deadline, Dehash(id), util.Ip2Num(ip),
+	}
+	token := Enhashs(tokens)
+
+	// ext := "x"
+	// if coding.Type != "" {
+	// 	ext = coding.Type
 	// }
-	// token := Enhashs(tokens)
 
-	//ext := "x"
-	//if coding.Type != "" {
-	//	ext = coding.Type
-	//}
+	preview := ark.Config.File.Site + "." + "preview"
 
-	return ""
-
-	// return Route("file.preview", Map{
-	// 	"{code}": code, "{size}": []int64{w, h, t}, "{ext}": "jpg", "token": token,
-	// })
+	return Route(preview, Map{
+		"{code}": code, "{size}": []int64{w, h, t}, "{ext}": "jpg", "token": token,
+	})
 }
 
 //生成文件信息，给驱动用的
@@ -751,4 +751,29 @@ func Upload(target string, metadata Map, bases ...string) (File, Files, error) {
 }
 func Download(code string) (string, error) {
 	return ark.Store.Download(code)
+}
+
+func SessionTokenized() bool {
+	for _, s := range ark.Config.File.Tokens {
+		if s == "session" {
+			return true
+		}
+	}
+	return false
+}
+func AddressTokenized() bool {
+	for _, s := range ark.Config.File.Tokens {
+		if s == "address" {
+			return true
+		}
+	}
+	return false
+}
+func ExpiryTokenized() bool {
+	for _, s := range ark.Config.File.Tokens {
+		if s == "expiry" {
+			return true
+		}
+	}
+	return false
 }

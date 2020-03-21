@@ -4,6 +4,9 @@ const (
 	DEFAULT = "default"
 	SERVICE = "service"
 	GATEWAY = "gateway"
+
+	BROWSE_TOKEN  = 0
+	PREVIEW_TOKEN = 1
 )
 
 const (

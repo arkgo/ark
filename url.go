@@ -2,7 +2,6 @@ package ark
 
 import (
 	"fmt"
-	"net/http"
 	"regexp"
 	"strings"
 	"time"
@@ -14,7 +13,7 @@ import (
 type (
 	httpUrl struct {
 		ctx *Http
-		req *http.Request
+		// req *http.Request
 	}
 )
 
@@ -299,13 +298,13 @@ func (url *httpUrl) Site(name string, path string, options ...Map) string {
 }
 
 func (url *httpUrl) Backing() bool {
-	if url.req == nil {
+	if url.ctx == nil {
 		return false
 	}
 
 	if s, ok := url.ctx.Query["backurl"]; ok && s != "" {
 		return true
-	} else if url.req.Referer() != "" {
+	} else if url.ctx.request.Referer() != "" {
 		return true
 	}
 	return false
@@ -327,11 +326,11 @@ func (url *httpUrl) Back() string {
 }
 
 func (url *httpUrl) Last() string {
-	if url.req == nil {
+	if url.ctx == nil {
 		return "/"
 	}
 
-	if ref := url.req.Referer(); ref != "" {
+	if ref := url.ctx.request.Referer(); ref != "" {
 		return ref
 	} else {
 		//都没有，就是当前URL
@@ -340,7 +339,7 @@ func (url *httpUrl) Last() string {
 }
 
 func (url *httpUrl) Current() string {
-	if url.req == nil {
+	if url.ctx == nil {
 		return "/"
 	}
 
@@ -348,7 +347,7 @@ func (url *httpUrl) Current() string {
 
 	// return fmt.Sprintf("%s://%s%s", url.req.URL., url.req.Host, url.req.URL.RequestURI())
 
-	return url.Site(url.ctx.Site, url.req.URL.RequestURI())
+	return url.Site(url.ctx.Site, url.ctx.request.URL.RequestURI())
 }
 
 //为了view友好，expires改成Any，支持duration解析
