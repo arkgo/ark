@@ -33,19 +33,16 @@ type (
 
 	HttpFunc func(*Http)
 	Http     struct {
-		index     int        //下一个索引
-		nexts     []HttpFunc //方法列表
-		lastError *Res
+		*Context
+
+		index int        //下一个索引
+		nexts []HttpFunc //方法列表
 
 		thread   HttpThread
 		request  *http.Request
 		response http.ResponseWriter
 
-		databases map[string]DataBase
-
 		charset string
-		lang    string
-		zone    *time.Location
 
 		Id         string
 		Name       string
@@ -87,19 +84,15 @@ type (
 	}
 )
 
-//在非context的时候，调用方法，来一个空的context
-//待优化：暂时先这样，省点事，可以单独定义一个context类型，实现接口
-//或者看看后续服务调用这块怎么设计，再优化，
-func emptyContext() *Http {
+func httpEmpty() *Http {
 	return &Http{
-		index: 0, nexts: make([]HttpFunc, 0), databases: make(map[string]DataBase),
-		charset: UTF8, lang: DEFAULT, zone: time.Local,
+		Context: newContext(),
 	}
 }
 func httpContext(thread HttpThread) *Http {
 	ctx := &Http{
-		index: 0, nexts: make([]HttpFunc, 0), databases: make(map[string]DataBase),
-		charset: UTF8, lang: DEFAULT, zone: time.Local,
+		Context: newContext(),
+		index:   0, nexts: make([]HttpFunc, 0), charset: UTF8,
 		thread: thread, request: thread.Request(), response: thread.Response(),
 		Setting: make(Map),
 		headers: make(map[string]string), cookies: make(map[string]http.Cookie), sessions: make(Map),
@@ -143,7 +136,7 @@ func httpContext(thread HttpThread) *Http {
 		ctx.domain = parts[l-2] + "." + parts[l-1]
 	}
 
-	ctx.Url = &httpUrl{ ctx }
+	ctx.Url = &httpUrl{ctx}
 
 	return ctx
 }
@@ -157,33 +150,36 @@ func (ctx *Http) Charset(charsets ...string) string {
 	}
 	return ctx.charset
 }
-func (ctx *Http) Lang(langs ...string) string {
-	if ctx == nil {
-		return DEFAULT
-	}
-	if len(langs) > 0 && langs[0] != "" {
-		//待优化：加上配置中的语言判断，否则不修改
-		ctx.lang = langs[0]
-	}
-	return ctx.lang
-}
-func (ctx *Http) Zone(zones ...*time.Location) *time.Location {
-	if ctx == nil {
-		return time.Local
-	}
 
-	if len(zones) > 0 && zones[0] != nil {
-		ctx.zone = zones[0]
-	}
-	return ctx.zone
-}
+// func (ctx *Http) Lang(langs ...string) string {
+// 	if ctx == nil {
+// 		return DEFAULT
+// 	}
+// 	if len(langs) > 0 && langs[0] != "" {
+// 		//待优化：加上配置中的语言判断，否则不修改
+// 		ctx.lang = langs[0]
+// 	}
+// 	return ctx.lang
+// }
+
+// func (ctx *Http) Zone(zones ...*time.Location) *time.Location {
+// 	if ctx == nil {
+// 		return time.Local
+// 	}
+
+// 	if len(zones) > 0 && zones[0] != nil {
+// 		ctx.zone = zones[0]
+// 	}
+// 	return ctx.zone
+// }
 
 //最终的清理工作
-func (ctx *Http) terminal() {
-	for _, base := range ctx.databases {
-		base.Close()
-	}
-}
+// func (ctx *Http) terminal() {
+// 	for _, base := range ctx.databases {
+// 		base.Close()
+// 	}
+// }
+
 func (ctx *Http) clear() {
 	ctx.index = 0
 	ctx.nexts = make([]HttpFunc, 0)
@@ -250,21 +246,21 @@ func (ctx *Http) sessional(defs ...bool) bool {
 	return sessional
 }
 
-func (ctx *Http) dataBase(bases ...string) DataBase {
-	base := DEFAULT
-	if len(bases) > 0 {
-		base = bases[0]
-	} else {
-		for key, _ := range ark.Data.connects {
-			base = key
-			break
-		}
-	}
-	if _, ok := ctx.databases[base]; ok == false {
-		ctx.databases[base] = ark.Data.Base(base)
-	}
-	return ctx.databases[base]
-}
+// func (ctx *Http) dataBase(bases ...string) DataBase {
+// 	base := DEFAULT
+// 	if len(bases) > 0 {
+// 		base = bases[0]
+// 	} else {
+// 		for key, _ := range ark.Data.connects {
+// 			base = key
+// 			break
+// 		}
+// 	}
+// 	if _, ok := ctx.databases[base]; ok == false {
+// 		ctx.databases[base] = ark.Data.Base(base)
+// 	}
+// 	return ctx.databases[base]
+// }
 
 //客户端请求校验
 //接口请求校验
@@ -934,19 +930,19 @@ func (ctx *Http) itemHandler() *Res {
 	return nil
 }
 
-//返回最后的错误信息
-//获取操作结果
-func (ctx *Http) Result(res ...*Res) *Res {
-	if len(res) > 0 {
-		err := res[0]
-		ctx.lastError = err
-		return err
-	} else {
-		err := ctx.lastError
-		ctx.lastError = nil
-		return err
-	}
-}
+// //返回最后的错误信息
+// //获取操作结果
+// func (ctx *Http) Result(res ...*Res) *Res {
+// 	if len(res) > 0 {
+// 		err := res[0]
+// 		ctx.lastError = err
+// 		return err
+// 	} else {
+// 		err := ctx.lastError
+// 		ctx.lastError = nil
+// 		return err
+// 	}
+// }
 
 //接入错误处理流程，和模块挂钩了
 func (ctx *Http) Found() {
@@ -1028,10 +1024,10 @@ func (ctx *Http) Session(key string, vals ...Any) Any {
 	}
 }
 
-//获取langString
-func (ctx *Http) String(key string, args ...Any) string {
-	return ark.Basic.String(ctx.Lang(), key, args...)
-}
+// //获取langString
+// func (ctx *Http) String(key string, args ...Any) string {
+// 	return ark.Basic.String(ctx.Lang(), key, args...)
+// }
 
 //----------------------- 签名系统 begin ---------------------------------
 func (ctx *Http) signKey(key string) string {
@@ -1073,68 +1069,68 @@ func (ctx *Http) Signer(key string) string {
 	return ""
 }
 
-//----------------------- 签名系统 end ---------------------------------
+// //----------------------- 签名系统 end ---------------------------------
 
-// ------- 服务调用 -----------------
-func (ctx *Http) Invoke(name string, values ...Map) Map {
-	value := Map{}
-	if len(values) > 0 {
-		value = values[0]
-	}
-	vvv, res := ark.Service.Invoke(ctx, name, value)
-	ctx.lastError = res
-	return vvv
-}
+// // ------- 服务调用 -----------------
+// func (ctx *Http) Invoke(name string, values ...Map) Map {
+// 	value := Map{}
+// 	if len(values) > 0 {
+// 		value = values[0]
+// 	}
+// 	vvv, res := ark.Service.Invoke(ctx, name, value)
+// 	ctx.lastError = res
+// 	return vvv
+// }
 
-func (ctx *Http) Invokes(name string, values ...Map) []Map {
-	value := Map{}
-	if len(values) > 0 {
-		value = values[0]
-	}
-	vvs, res := ark.Service.Invokes(ctx, name, value)
-	ctx.lastError = res
-	return vvs
-}
-func (ctx *Http) Invoked(name string, values ...Map) bool {
-	value := Map{}
-	if len(values) > 0 {
-		value = values[0]
-	}
-	vvv, res := ark.Service.Invoked(ctx, name, value)
-	ctx.lastError = res
-	return vvv
-}
-func (ctx *Http) Invoking(name string, offset, limit int64, values ...Map) (int64, []Map) {
-	value := Map{}
-	if len(values) > 0 {
-		value = values[0]
-	}
-	count, items, res := ark.Service.Invoking(ctx, name, offset, limit, value)
-	ctx.lastError = res
-	return count, items
-}
+// func (ctx *Http) Invokes(name string, values ...Map) []Map {
+// 	value := Map{}
+// 	if len(values) > 0 {
+// 		value = values[0]
+// 	}
+// 	vvs, res := ark.Service.Invokes(ctx, name, value)
+// 	ctx.lastError = res
+// 	return vvs
+// }
+// func (ctx *Http) Invoked(name string, values ...Map) bool {
+// 	value := Map{}
+// 	if len(values) > 0 {
+// 		value = values[0]
+// 	}
+// 	vvv, res := ark.Service.Invoked(ctx, name, value)
+// 	ctx.lastError = res
+// 	return vvv
+// }
+// func (ctx *Http) Invoking(name string, offset, limit int64, values ...Map) (int64, []Map) {
+// 	value := Map{}
+// 	if len(values) > 0 {
+// 		value = values[0]
+// 	}
+// 	count, items, res := ark.Service.Invoking(ctx, name, offset, limit, value)
+// 	ctx.lastError = res
+// 	return count, items
+// }
 
-func (ctx *Http) Invoker(name string, values ...Map) (Map, []Map) {
-	value := Map{}
-	if len(values) > 0 {
-		value = values[0]
-	}
-	item, items, res := ark.Service.Invoker(ctx, name, value)
-	ctx.lastError = res
-	return item, items
-}
+// func (ctx *Http) Invoker(name string, values ...Map) (Map, []Map) {
+// 	value := Map{}
+// 	if len(values) > 0 {
+// 		value = values[0]
+// 	}
+// 	item, items, res := ark.Service.Invoker(ctx, name, value)
+// 	ctx.lastError = res
+// 	return item, items
+// }
 
-func (ctx *Http) Invokee(name string, values ...Map) float64 {
-	value := Map{}
-	if len(values) > 0 {
-		value = values[0]
-	}
-	count, res := ark.Service.Invokee(ctx, name, value)
-	ctx.lastError = res
-	return count
-}
+// func (ctx *Http) Invokee(name string, values ...Map) float64 {
+// 	value := Map{}
+// 	if len(values) > 0 {
+// 		value = values[0]
+// 	}
+// 	count, res := ark.Service.Invokee(ctx, name, value)
+// 	ctx.lastError = res
+// 	return count
+// }
 
-//------- 服务调用 -----------------
+// //------- 服务调用 -----------------
 
 //远程存储代理
 func (ctx *Http) Remote(code string, names ...string) {
@@ -1385,7 +1381,7 @@ func (ctx *Http) Buffer(rd io.ReadCloser, mimeType string, names ...string) {
 	}
 	ctx.Body = httpBufferBody{rd, name}
 }
-func (ctx *Http) Down(bytes []byte, mimeType string, names ...string) {
+func (ctx *Http) Binary(bytes []byte, mimeType string, names ...string) {
 	//如果已经存在了httpDownBody，那还要把原有的reader关闭
 	//释放资源， 当然在file.base.close中也应该关闭已经打开的资源
 	if vv, ok := ctx.Body.(httpBufferBody); ok {
@@ -1563,15 +1559,4 @@ func (ctx *Http) Ip() string {
 	}
 
 	return ip
-}
-
-//语法糖
-func (ctx *Http) Locked(key string, expiry time.Duration, cons ...string) bool {
-	return ark.Mutex.Lock(key, expiry, cons...) != nil
-}
-func (ctx *Http) Lock(key string, expiry time.Duration, cons ...string) error {
-	return ark.Mutex.Lock(key, expiry, cons...)
-}
-func (ctx *Http) Unlock(key string, cons ...string) error {
-	return ark.Mutex.Unlock(key, cons...)
 }

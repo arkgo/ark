@@ -2,10 +2,12 @@ package ark
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
 	. "github.com/arkgo/asset"
+	"github.com/arkgo/asset/cron"
 	"github.com/arkgo/asset/hashring"
 )
 
@@ -49,20 +51,45 @@ type (
 	}
 
 	busModule struct {
-		mutex        sync.Mutex
-		drivers      map[string]BusDriver
+		mutex   sync.Mutex
+		drivers map[string]BusDriver
+
+		plans        map[string]Plan
 		events       map[string]Event
 		queues       map[string]Queue
 		queueThreads map[string]int
 
 		connects map[string]BusConnect
 		hashring *hashring.HashRing
+
+		cron        *cron.Cron
+		cronEntries map[string][]string
 	}
 
+	Plan struct {
+		Time   string   `json:"time"`
+		Times  []string `json:"times"`
+		Method string   `json:"method"`
+		Value  Map      `json:"value"`
+
+		Name     string   `json:"name"`
+		Desc     string   `json:"desc"`
+		Alias    []string `json:"alias"`
+		Nullable bool     `json:"nullable"`
+		Args     Vars     `json:"args"`
+		Data     Vars     `json:"data"`
+		Setting  Map      `json:"setting"`
+		Action   Any      `json:"-"`
+	}
 	Event struct {
-		Name  string   `json:"name"`
-		Desc  string   `json:"desc"`
-		Alias []string `json:"alias"`
+		Name     string   `json:"name"`
+		Desc     string   `json:"desc"`
+		Alias    []string `json:"alias"`
+		Nullable bool     `json:"nullable"`
+		Args     Vars     `json:"args"`
+		Data     Vars     `json:"data"`
+		Setting  Map      `json:"setting"`
+		Action   Any      `json:"-"`
 	}
 	Queue struct {
 		Name   string   `json:"name"`
@@ -74,7 +101,9 @@ type (
 
 func newBus() *busModule {
 	return &busModule{
-		drivers:      make(map[string]BusDriver, 0),
+		drivers: make(map[string]BusDriver, 0),
+
+		plans:        make(map[string]Plan),
 		events:       make(map[string]Event),
 		queues:       make(map[string]Queue),
 		queueThreads: make(map[string]int),
@@ -106,74 +135,76 @@ func (module *busModule) Driver(name string, driver BusDriver, overrides ...bool
 	}
 }
 
-// func (module *busModule) Event(name string, config Map, overrides ...bool) {
-// 	module.mutex.Lock()
-// 	defer module.mutex.Unlock()
+func (module *busModule) Plan(name string, config Plan, overrides ...bool) {
+	module.mutex.Lock()
+	defer module.mutex.Unlock()
 
-// 	if config == nil {
-// 		panic("[总线]事伯不可为空")
-// 	}
-
-// 	override := true
-// 	if len(overrides) > 0 {
-// 		override = overrides[0]
-// 	}
-
-// 	if override {
-// 		module.events[name] = config
-// 	} else {
-// 		if module.events[name] == nil {
-// 			module.events[name] = config
-// 		}
-// 	}
-// }
-
-func (module *busModule) Event(name string, config Event, overrides ...bool) {
 	override := true
 	if len(overrides) > 0 {
 		override = overrides[0]
 	}
 
-	alias := make([]string, 0)
-	if name != "" {
-		alias = append(alias, name)
+	if config.Times == nil {
+		config.Times = make([]string, 0)
 	}
-	if config.Alias != nil {
-		alias = append(alias, config.Alias...)
+	if config.Time != "" {
+		config.Times = append(config.Times, config.Time)
+		config.Time = ""
 	}
 
-	for _, key := range alias {
-		if override {
-			module.events[key] = config
-		} else {
-			if _, ok := module.events[key]; ok == false {
-				module.events[key] = config
-			}
+	if override {
+		module.plan(name, config)
+	} else {
+		if _, ok := module.events[name]; ok == false {
+			module.plan(name, config)
 		}
 	}
 }
+func (module *busModule) plan(name string, config Plan) {
+	if config.Method == "" {
+		config.Method = name //调用自己
+	}
+	if config.Action != nil {
+		//如果action不为空，代注册方法
+		ark.Service.Method(name, Method{
+			Name: config.Name, Desc: config.Desc, Alias: config.Alias,
+			Nullable: config.Nullable, Args: config.Args, Data: config.Data,
+			Setting: config.Setting, Action: config.Action,
+		})
+	}
 
-// func (module *busModule) Queue(name string, config Map, overrides ...bool) {
-// 	module.mutex.Lock()
-// 	defer module.mutex.Unlock()
+	module.plans[name] = config
+}
 
-// 	if config == nil {
-// 		panic("[总线]事件不可为空")
-// 	}
+func (module *busModule) Event(name string, config Event, overrides ...bool) {
+	module.mutex.Lock()
+	defer module.mutex.Unlock()
 
-// 	override := true
-// 	if len(overrides) > 0 {
-// 		override = overrides[0]
-// 	}
+	override := true
+	if len(overrides) > 0 {
+		override = overrides[0]
+	}
 
-// 	if override {
-// 		module.queue(name, config)
-// 	} else {
-// 		if module.queues[name] == nil {
-// 			module.queue(name, config)
-// 		}
-// 	}
-// }
+	if override {
+		module.event(name, config)
+	} else {
+		if _, ok := module.events[name]; ok == false {
+			module.event(name, config)
+		}
+	}
+}
+func (module *busModule) event(name string, config Event) {
+	if config.Action != nil {
+		//如果action不为空，代注册方法
+		ark.Service.Method(name, Method{
+			Name: config.Name, Desc: config.Desc, Alias: config.Alias,
+			Nullable: config.Nullable, Args: config.Args, Data: config.Data,
+			Setting: config.Setting, Action: config.Action,
+		})
+	}
+
+	module.events[name] = config
+}
 
 func (module *busModule) Queue(name string, config Queue, overrides ...bool) {
 	override := true
@@ -212,6 +243,39 @@ func (module *busModule) connecting(name string, config BusConfig) (BusConnect, 
 	panic("[总线]不支持的驱动" + config.Driver)
 }
 func (module *busModule) initing() {
+
+	//开始计划
+	module.cron = cron.New()
+	module.cronEntries = make(map[string][]string)
+
+	for key, val := range module.plans {
+		name := key
+		config := val
+
+		ids := make([]string, 0)
+		for i, crontab := range config.Times {
+			timeName := fmt.Sprintf("%s.%v", key, i)
+			id, err := module.cron.AddFunc(crontab, func() {
+
+				//超时，那边要判断是不是主节点
+				module.planning(name, config)
+
+			}, &cron.Extra{Name: timeName, RunForce: false, TimeOut: 5})
+
+			if err != nil {
+				panic("[总线]注册计划失败")
+			}
+
+			ids = append(ids, id)
+		}
+
+		module.cronEntries[name] = ids
+	}
+
+	module.cron.Start()
+
+	//-----------------------注册事件和队列--------------------
+
 	weights := make(map[string]int)
 	for name, config := range ark.Config.Bus {
 
@@ -261,9 +325,17 @@ func (module *busModule) initing() {
 	module.hashring = hashring.New(weights)
 }
 func (module *busModule) exiting() {
+	if module.cron != nil {
+		module.cron.Stop()
+	}
 	for _, connect := range module.connects {
 		connect.Close()
 	}
+}
+
+//收到计划
+func (module *busModule) planning(name string, config Plan) {
+	ark.Service.Invoke(nil, config.Method, config.Value)
 }
 
 //收到事件和队列

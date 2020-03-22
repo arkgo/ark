@@ -79,6 +79,13 @@ func Register(args ...Any) {
 	case Crypto:
 		ark.Basic.Crypto(key, val, override)
 
+	case Plan:
+		ark.Bus.Plan(key, val, override)
+	case Event:
+		ark.Bus.Event(key, val, override)
+	case Queue:
+		ark.Bus.Queue(key, val, override)
+
 	case Table:
 		ark.Data.Table(key, val, override)
 	case View:

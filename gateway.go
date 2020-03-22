@@ -10,22 +10,27 @@ type (
 	GatewayConfig struct {
 		Driver string `toml:"driver"`
 	}
-	gatewayNode struct {
+	serviceNode struct {
+		Key  string
+		Host string
+		Port int
+	}
+	websiteNode struct {
 		Key  string
 		Host string
 		Port int
 	}
 	gatewayModule struct {
 		mutex        sync.Mutex
-		serviceNodes map[string]gatewayNode
-		websiteNodes map[string]gatewayNode
+		serviceNodes map[string]serviceNode
+		websiteNodes map[string]websiteNode
 	}
 )
 
 func newGateway() *gatewayModule {
 	gateway := &gatewayModule{
-		serviceNodes: make(map[string]gatewayNode),
-		websiteNodes: make(map[string]gatewayNode),
+		serviceNodes: make(map[string]serviceNode),
+		websiteNodes: make(map[string]websiteNode),
 	}
 	return gateway
 }
@@ -39,7 +44,7 @@ func (module *gatewayModule) Service(host string, port int) error {
 		return errors.New("已经存在相同的服务节点")
 	}
 
-	module.serviceNodes[key] = gatewayNode{key, host, port}
+	module.serviceNodes[key] = serviceNode{key, host, port}
 
 	return nil
 }
@@ -53,7 +58,7 @@ func (module *gatewayModule) Website(host string, port int) error {
 		return errors.New("已经存在相同的服务节点")
 	}
 
-	module.websiteNodes[key] = gatewayNode{key, host, port}
+	module.websiteNodes[key] = websiteNode{key, host, port}
 
 	return nil
 }

@@ -13,7 +13,6 @@ import (
 type (
 	httpUrl struct {
 		ctx *Http
-		// req *http.Request
 	}
 )
 

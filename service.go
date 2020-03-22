@@ -3,7 +3,6 @@ package ark
 import (
 	"fmt"
 	"sync"
-	"time"
 
 	"github.com/arkgo/asset"
 	. "github.com/arkgo/asset"
@@ -15,19 +14,19 @@ type (
 		methods map[string]Method
 	}
 
-	serviceLibrary struct {
+	library struct {
 		module *serviceModule
 		name   string
 	}
 
-	ServiceLogic struct {
-		ctx     context
+	Logic struct {
+		*Context
 		Name    string
 		Setting Map
 	}
 
 	Service struct {
-		ctx     context
+		*Context
 		Name    string
 		Config  Method
 		Setting Map
@@ -82,7 +81,7 @@ func (module *serviceModule) Method(name string, config Method, overrides ...boo
 	}
 }
 
-func (module *serviceModule) Invoke(ctx context, name string, value Map, settings ...Map) (Map, *Res) {
+func (module *serviceModule) Invoke(ctx *Context, name string, value Map, settings ...Map) (Map, *Res) {
 	if _, ok := module.methods[name]; ok == false {
 		return nil, Fail
 	}
@@ -95,7 +94,7 @@ func (module *serviceModule) Invoke(ctx context, name string, value Map, setting
 	}
 
 	if ctx == nil {
-		ctx = emptyContext()
+		ctx = newContext()
 		defer ctx.terminal()
 	}
 	if value == nil {
@@ -114,7 +113,7 @@ func (module *serviceModule) Invoke(ctx context, name string, value Map, setting
 	}
 
 	service := &Service{
-		ctx: ctx, Name: name, Config: config, Setting: setting,
+		Context: ctx, Name: name, Config: config, Setting: setting,
 		Value: value, Args: args,
 	}
 
@@ -162,7 +161,7 @@ func (module *serviceModule) Invoke(ctx context, name string, value Map, setting
 	//参数如果解析失败，就原版返回
 	return data, result
 }
-func (module *serviceModule) Invokes(ctx context, name string, value Map, settings ...Map) ([]Map, *Res) {
+func (module *serviceModule) Invokes(ctx *Context, name string, value Map, settings ...Map) ([]Map, *Res) {
 	data, res := module.Invoke(ctx, name, value, settings...)
 	if res.Fail() {
 		return []Map{}, res
@@ -172,14 +171,14 @@ func (module *serviceModule) Invokes(ctx context, name string, value Map, settin
 	}
 	return []Map{data}, res
 }
-func (module *serviceModule) Invoked(ctx context, name string, value Map, settings ...Map) (bool, *Res) {
+func (module *serviceModule) Invoked(ctx *Context, name string, value Map, settings ...Map) (bool, *Res) {
 	_, res := module.Invoke(ctx, name, value, settings...)
 	if res.OK() {
 		return true, res
 	}
 	return false, res
 }
-func (module *serviceModule) Invoking(ctx context, name string, offset, limit int64, value Map, settings ...Map) (int64, []Map, *Res) {
+func (module *serviceModule) Invoking(ctx *Context, name string, offset, limit int64, value Map, settings ...Map) (int64, []Map, *Res) {
 	if value == nil {
 		value = Map{}
 	}
@@ -200,7 +199,7 @@ func (module *serviceModule) Invoking(ctx context, name string, offset, limit in
 	return 0, []Map{data}, res
 }
 
-func (module *serviceModule) Invoker(ctx context, name string, value Map, settings ...Map) (Map, []Map, *Res) {
+func (module *serviceModule) Invoker(ctx *Context, name string, value Map, settings ...Map) (Map, []Map, *Res) {
 	data, res := module.Invoke(ctx, name, value, settings...)
 	if res.Fail() {
 		return nil, nil, res
@@ -216,7 +215,7 @@ func (module *serviceModule) Invoker(ctx context, name string, value Map, settin
 	return data, []asset.Map{data}, res
 }
 
-func (module *serviceModule) Invokee(ctx context, name string, value Map, settings ...Map) (float64, *Res) {
+func (module *serviceModule) Invokee(ctx *Context, name string, value Map, settings ...Map) (float64, *Res) {
 	data, res := module.Invoke(ctx, name, value, settings...)
 	if res.Fail() {
 		return 0, res
@@ -231,15 +230,15 @@ func (module *serviceModule) Invokee(ctx context, name string, value Map, settin
 	return 0, res
 }
 
-func (module *serviceModule) Library(name string) *serviceLibrary {
-	return &serviceLibrary{module, name}
+func (module *serviceModule) Library(name string) *library {
+	return &library{module, name}
 }
-func (module *serviceModule) Logic(ctx context, name string, settings ...Map) *ServiceLogic {
+func (module *serviceModule) Logic(ctx *Context, name string, settings ...Map) *Logic {
 	setting := make(Map)
 	if len(settings) > 0 {
 		setting = settings[0]
 	}
-	return &ServiceLogic{ctx, name, setting}
+	return &Logic{ctx, name, setting}
 }
 
 //获取参数定义
@@ -256,161 +255,162 @@ func (module *serviceModule) Arguments(name string, extends ...Vars) Vars {
 
 //------------ library ----------------
 
-func (lib *serviceLibrary) Name() string {
+func (lib *library) Name() string {
 	return lib.name
 }
-func (lib *serviceLibrary) Register(name string, config Method, overrides ...bool) {
+func (lib *library) Register(name string, config Method, overrides ...bool) {
 	realName := fmt.Sprintf("%s.%s", lib.name, name)
 	lib.module.Method(realName, config, overrides...)
 }
 
 //------------------- Service 方法 --------------------
-func (sv *Service) Zone() *time.Location {
-	return sv.ctx.Zone()
-}
-func (sv *Service) Lang() string {
-	return sv.ctx.Lang()
-}
+// func (sv *Service) Zone() *time.Location {
+// 	return sv.ctx.Zone()
+// }
+// func (sv *Service) Lang() string {
+// 	return sv.ctx.Lang()
+// }
 
-func (sv *Service) Result() *Res {
-	return sv.ctx.Result()
-}
+// func (sv *Service) Result() *Res {
+// 	return sv.ctx.Result()
+// }
 func (lgc *Service) Data(bases ...string) DataBase {
-	return lgc.ctx.dataBase(bases...)
-}
-func (service *Service) Invoke(name string, values ...Map) Map {
-	value := Map{}
-	if len(values) > 0 {
-		value = values[0]
-	}
-	vvv, res := ark.Service.Invoke(service.ctx, name, value)
-	service.ctx.Result(res)
-	return vvv
+	return lgc.dataBase(bases...)
 }
 
-func (service *Service) Invokes(name string, values ...Map) []Map {
-	value := Map{}
-	if len(values) > 0 {
-		value = values[0]
-	}
-	vvs, res := ark.Service.Invokes(service.ctx, name, value)
-	service.ctx.Result(res)
-	return vvs
-}
-func (service *Service) Invoked(name string, values ...Map) bool {
-	value := Map{}
-	if len(values) > 0 {
-		value = values[0]
-	}
-	vvv, res := ark.Service.Invoked(service.ctx, name, value)
-	service.ctx.Result(res)
-	return vvv
-}
-func (service *Service) Invoking(name string, offset, limit int64, values ...Map) (int64, []Map) {
-	value := Map{}
-	if len(values) > 0 {
-		value = values[0]
-	}
-	count, items, res := ark.Service.Invoking(service.ctx, name, offset, limit, value)
-	service.ctx.Result(res)
-	return count, items
-}
+// func (service *Service) Invoke(name string, values ...Map) Map {
+// 	value := Map{}
+// 	if len(values) > 0 {
+// 		value = values[0]
+// 	}
+// 	vvv, res := ark.Service.Invoke(service.ctx, name, value)
+// 	service.ctx.Result(res)
+// 	return vvv
+// }
 
-func (service *Service) Invoker(name string, values ...Map) (Map, []Map) {
-	value := Map{}
-	if len(values) > 0 {
-		value = values[0]
-	}
-	item, items, res := ark.Service.Invoker(service.ctx, name, value)
-	service.ctx.Result(res)
-	return item, items
-}
+// func (service *Service) Invokes(name string, values ...Map) []Map {
+// 	value := Map{}
+// 	if len(values) > 0 {
+// 		value = values[0]
+// 	}
+// 	vvs, res := ark.Service.Invokes(service.ctx, name, value)
+// 	service.ctx.Result(res)
+// 	return vvs
+// }
+// func (service *Service) Invoked(name string, values ...Map) bool {
+// 	value := Map{}
+// 	if len(values) > 0 {
+// 		value = values[0]
+// 	}
+// 	vvv, res := ark.Service.Invoked(service.ctx, name, value)
+// 	service.ctx.Result(res)
+// 	return vvv
+// }
+// func (service *Service) Invoking(name string, offset, limit int64, values ...Map) (int64, []Map) {
+// 	value := Map{}
+// 	if len(values) > 0 {
+// 		value = values[0]
+// 	}
+// 	count, items, res := ark.Service.Invoking(service.ctx, name, offset, limit, value)
+// 	service.ctx.Result(res)
+// 	return count, items
+// }
 
-func (service *Service) Invokee(name string, values ...Map) float64 {
-	value := Map{}
-	if len(values) > 0 {
-		value = values[0]
-	}
-	count, res := ark.Service.Invokee(service.ctx, name, value)
-	service.ctx.Result(res)
-	return count
-}
+// func (service *Service) Invoker(name string, values ...Map) (Map, []Map) {
+// 	value := Map{}
+// 	if len(values) > 0 {
+// 		value = values[0]
+// 	}
+// 	item, items, res := ark.Service.Invoker(service.ctx, name, value)
+// 	service.ctx.Result(res)
+// 	return item, items
+// }
 
-func (lgc *Service) Logic(name string, settings ...Map) *ServiceLogic {
-	return ark.Service.Logic(lgc.ctx, name, settings...)
-}
+// func (service *Service) Invokee(name string, values ...Map) float64 {
+// 	value := Map{}
+// 	if len(values) > 0 {
+// 		value = values[0]
+// 	}
+// 	count, res := ark.Service.Invokee(service.ctx, name, value)
+// 	service.ctx.Result(res)
+// 	return count
+// }
 
-//语法糖
-func (lgc *Service) Locked(key string, expiry time.Duration, cons ...string) bool {
-	return ark.Mutex.Lock(key, expiry, cons...) != nil
-}
-func (lgc *Service) Lock(key string, expiry time.Duration, cons ...string) error {
-	return ark.Mutex.Lock(key, expiry, cons...)
-}
-func (lgc *Service) Unlock(key string, cons ...string) error {
-	return ark.Mutex.Unlock(key, cons...)
-}
+// func (lgc *Service) Logic(name string, settings ...Map) *Logic {
+// 	return ark.Service.Logic(lgc.Context, name, settings...)
+// }
+
+// //语法糖
+// func (lgc *Service) Locked(key string, expiry time.Duration, cons ...string) bool {
+// 	return ark.Mutex.Lock(key, expiry, cons...) != nil
+// }
+// func (lgc *Service) Lock(key string, expiry time.Duration, cons ...string) error {
+// 	return ark.Mutex.Lock(key, expiry, cons...)
+// }
+// func (lgc *Service) Unlock(key string, cons ...string) error {
+// 	return ark.Mutex.Unlock(key, cons...)
+// }
 
 //------- logic 方法 -------------
-func (logic *ServiceLogic) naming(name string) string {
+func (logic *Logic) naming(name string) string {
 	return logic.Name + "." + name
 }
 
-func (logic *ServiceLogic) Invoke(name string, values ...Map) Map {
+func (logic *Logic) Invoke(name string, values ...Map) Map {
 	value := Map{}
 	if len(values) > 0 {
 		value = values[0]
 	}
-	vvv, res := ark.Service.Invoke(logic.ctx, name, value)
-	logic.ctx.Result(res)
+	vvv, res := ark.Service.Invoke(logic.Context, logic.naming(name), value, logic.Setting)
+	logic.Result(res)
 	return vvv
 }
 
-func (logic *ServiceLogic) Invokes(name string, values ...Map) []Map {
+func (logic *Logic) Invokes(name string, values ...Map) []Map {
 	value := Map{}
 	if len(values) > 0 {
 		value = values[0]
 	}
-	vvs, res := ark.Service.Invokes(logic.ctx, name, value)
-	logic.ctx.Result(res)
+	vvs, res := ark.Service.Invokes(logic.Context, logic.naming(name), value, logic.Setting)
+	logic.Result(res)
 	return vvs
 }
-func (logic *ServiceLogic) Invoked(name string, values ...Map) bool {
+func (logic *Logic) Invoked(name string, values ...Map) bool {
 	value := Map{}
 	if len(values) > 0 {
 		value = values[0]
 	}
-	vvv, res := ark.Service.Invoked(logic.ctx, name, value)
-	logic.ctx.Result(res)
+	vvv, res := ark.Service.Invoked(logic.Context, logic.naming(name), value, logic.Setting)
+	logic.Result(res)
 	return vvv
 }
-func (logic *ServiceLogic) Invoking(name string, offset, limit int64, values ...Map) (int64, []Map) {
+func (logic *Logic) Invoking(name string, offset, limit int64, values ...Map) (int64, []Map) {
 	value := Map{}
 	if len(values) > 0 {
 		value = values[0]
 	}
-	count, items, res := ark.Service.Invoking(logic.ctx, name, offset, limit, value)
-	logic.ctx.Result(res)
+	count, items, res := ark.Service.Invoking(logic.Context, logic.naming(name), offset, limit, value, logic.Setting)
+	logic.Result(res)
 	return count, items
 }
 
-func (logic *ServiceLogic) Invoker(name string, values ...Map) (Map, []Map) {
+func (logic *Logic) Invoker(name string, values ...Map) (Map, []Map) {
 	value := Map{}
 	if len(values) > 0 {
 		value = values[0]
 	}
-	item, items, res := ark.Service.Invoker(logic.ctx, name, value)
-	logic.ctx.Result(res)
+	item, items, res := ark.Service.Invoker(logic.Context, logic.naming(name), value, logic.Setting)
+	logic.Result(res)
 	return item, items
 }
 
-func (logic *ServiceLogic) Invokee(name string, values ...Map) float64 {
+func (logic *Logic) Invokee(name string, values ...Map) float64 {
 	value := Map{}
 	if len(values) > 0 {
 		value = values[0]
 	}
-	count, res := ark.Service.Invokee(logic.ctx, name, value)
-	logic.ctx.Result(res)
+	count, res := ark.Service.Invokee(logic.Context, logic.naming(name), value, logic.Setting)
+	logic.Result(res)
 	return count
 }
 
@@ -420,7 +420,7 @@ func (logic *ServiceLogic) Invokee(name string, values ...Map) float64 {
 // 	ark.Service.Method(name, config, overrides...)
 // }
 
-func Library(name string) *serviceLibrary {
+func Library(name string) *library {
 	return ark.Service.Library(name)
 }
 
