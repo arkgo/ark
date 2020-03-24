@@ -54,10 +54,9 @@ type (
 		mutex   sync.Mutex
 		drivers map[string]BusDriver
 
-		plans        map[string]Plan
-		events       map[string]Event
-		queues       map[string]Queue
-		queueThreads map[string]int
+		plans  map[string]Plan
+		events map[string]Event
+		queues map[string]Queue
 
 		connects map[string]BusConnect
 		hashring *hashring.HashRing
@@ -82,6 +81,7 @@ type (
 		Action   Any      `json:"-"`
 	}
 	Event struct {
+		Bus      string   `json:"bus"`
 		Name     string   `json:"name"`
 		Desc     string   `json:"desc"`
 		Alias    []string `json:"alias"`
@@ -91,11 +91,18 @@ type (
 		Setting  Map      `json:"setting"`
 		Action   Any      `json:"-"`
 	}
+	//Queue 目前基本只用于外部队列
 	Queue struct {
-		Name   string   `json:"name"`
-		Desc   string   `json:"desc"`
-		Alias  []string `json:"alias"`
-		Thread int      `json:"thread"`
+		Bus      string   `json:"bus"`
+		Thread   int      `json:"thread"`
+		Name     string   `json:"name"`
+		Desc     string   `json:"desc"`
+		Alias    []string `json:"alias"`
+		Nullable bool     `json:"nullable"`
+		Args     Vars     `json:"args"`
+		Data     Vars     `json:"data"`
+		Setting  Map      `json:"setting"`
+		Action   Any      `json:"-"`
 	}
 )
 
@@ -103,10 +110,9 @@ func newBus() *busModule {
 	return &busModule{
 		drivers: make(map[string]BusDriver, 0),
 
-		plans:        make(map[string]Plan),
-		events:       make(map[string]Event),
-		queues:       make(map[string]Queue),
-		queueThreads: make(map[string]int),
+		plans:  make(map[string]Plan),
+		events: make(map[string]Event),
+		queues: make(map[string]Queue),
 
 		connects: make(map[string]BusConnect, 0),
 	}
@@ -139,11 +145,9 @@ func (module *busModule) Plan(name string, config Plan, overrides ...bool) {
 	module.mutex.Lock()
 	defer module.mutex.Unlock()
 
-	override := true
-	if len(overrides) > 0 {
-		override = overrides[0]
+	if config.Method == "" {
+		config.Method = name //调用自己
 	}
-
 	if config.Times == nil {
 		config.Times = make([]string, 0)
 	}
@@ -152,64 +156,91 @@ func (module *busModule) Plan(name string, config Plan, overrides ...bool) {
 		config.Time = ""
 	}
 
-	if override {
-		module.plan(name, config)
-	} else {
-		if _, ok := module.events[name]; ok == false {
-			module.plan(name, config)
-		}
-	}
-}
-func (module *busModule) plan(name string, config Plan) {
-	if config.Method == "" {
-		config.Method = name //调用自己
-	}
 	if config.Action != nil {
 		//如果action不为空，代注册方法
 		ark.Service.Method(name, Method{
 			Name: config.Name, Desc: config.Desc, Alias: config.Alias,
 			Nullable: config.Nullable, Args: config.Args, Data: config.Data,
 			Setting: config.Setting, Action: config.Action,
-		})
+		}, overrides...)
 	}
 
-	module.plans[name] = config
+	override := true
+	if len(overrides) > 0 {
+		override = overrides[0]
+	}
+
+	alias := make([]string, 0)
+	if name != "" {
+		alias = append(alias, name)
+	}
+	if config.Alias != nil {
+		alias = append(alias, config.Alias...)
+	}
+
+	for _, key := range alias {
+		if override {
+			module.plans[key] = config
+		} else {
+			if _, ok := module.events[key]; ok == false {
+				module.plans[key] = config
+			}
+		}
+	}
+}
+func (module *busModule) plan(name string, config Plan) {
+
 }
 
 func (module *busModule) Event(name string, config Event, overrides ...bool) {
 	module.mutex.Lock()
 	defer module.mutex.Unlock()
 
-	override := true
-	if len(overrides) > 0 {
-		override = overrides[0]
-	}
-
-	if override {
-		module.event(name, config)
-	} else {
-		if _, ok := module.events[name]; ok == false {
-			module.event(name, config)
-		}
-	}
-}
-func (module *busModule) event(name string, config Event) {
+	//实际注册方法，加条件，以支持在Method和Service反注册
 	if config.Action != nil {
-		//如果action不为空，代注册方法
 		ark.Service.Method(name, Method{
 			Name: config.Name, Desc: config.Desc, Alias: config.Alias,
 			Nullable: config.Nullable, Args: config.Args, Data: config.Data,
 			Setting: config.Setting, Action: config.Action,
-		})
+		}, overrides...)
 	}
 
-	module.events[name] = config
-}
+	override := true
+	if len(overrides) > 0 {
+		override = overrides[0]
+	}
 
+	alias := make([]string, 0)
+	if name != "" {
+		alias = append(alias, name)
+	}
+	if config.Alias != nil {
+		alias = append(alias, config.Alias...)
+	}
+
+	for _, key := range alias {
+		if override {
+			module.events[key] = config
+		} else {
+			if _, ok := module.events[key]; ok == false {
+				module.events[key] = config
+			}
+		}
+	}
+}
 func (module *busModule) Queue(name string, config Queue, overrides ...bool) {
 	override := true
 	if len(overrides) > 0 {
 		override = overrides[0]
+	}
+
+	//实际注册方法，加条件，以支持在Method和Service反注册
+	if config.Action != nil {
+		ark.Service.Method(name, Method{
+			Name: config.Name, Desc: config.Desc, Alias: config.Alias,
+			Nullable: config.Nullable, Args: config.Args, Data: config.Data,
+			Setting: config.Setting, Action: config.Action,
+		}, overrides...)
 	}
 
 	alias := make([]string, 0)
@@ -227,11 +258,9 @@ func (module *busModule) Queue(name string, config Queue, overrides ...bool) {
 	for _, key := range alias {
 		if override {
 			module.queues[key] = config
-			module.queueThreads[key] = config.Thread
 		} else {
 			if _, ok := module.queues[key]; ok == false {
 				module.queues[key] = config
-				module.queueThreads[key] = config.Thread
 			}
 		}
 	}
@@ -277,9 +306,9 @@ func (module *busModule) initing() {
 	//-----------------------注册事件和队列--------------------
 
 	weights := make(map[string]int)
-	for name, config := range ark.Config.Bus {
+	for busName, busConfig := range ark.Config.Bus {
 
-		connect, err := module.connecting(name, config)
+		connect, err := module.connecting(busName, busConfig)
 		if err != nil {
 			panic("[总线]连接失败：" + err.Error())
 		}
@@ -295,19 +324,21 @@ func (module *busModule) initing() {
 
 		//权重大于0，才表示是本系统自动要使用的消息服务
 		//如果小于等于0，则表示是外接的消息系统，就不订阅
-		if config.Weight > 0 {
-			weights[name] = config.Weight
+		if busConfig.Weight > 0 {
+			weights[busName] = busConfig.Weight
+		}
 
-			//待处理，注册订阅和队列
-
-			for name, _ := range module.events {
-				if err := connect.Event(name); err != nil {
+		for eventName, eventConfig := range module.events {
+			if eventConfig.Bus == "" || eventConfig.Bus == "*" || eventConfig.Bus == busName {
+				if err := connect.Event(eventName); err != nil {
 					panic("[总线]注册事件失败：" + err.Error())
 				}
 			}
+		}
 
-			for name, thread := range module.queueThreads {
-				if err := connect.Queue(name, thread); err != nil {
+		for queueName, queueConfig := range module.queues {
+			if queueConfig.Bus == "" || queueConfig.Bus == "*" || queueConfig.Bus == busName {
+				if err := connect.Queue(queueName, queueConfig.Thread); err != nil {
 					panic("[总线]注册队列失败：" + err.Error())
 				}
 			}
@@ -318,7 +349,7 @@ func (module *busModule) initing() {
 			panic("[总线]启动失败：" + err.Error())
 		}
 
-		module.connects[name] = connect
+		module.connects[busName] = connect
 	}
 
 	//hashring分片

@@ -1542,7 +1542,7 @@ func (module *httpModule) bodyApi(ctx *Http, body httpApiBody) {
 		}
 
 		val := Map{}
-		res := ark.Basic.Mapping(tempConfig, tempData, val, false, false, ctx)
+		res := ark.Basic.Mapping(tempConfig, tempData, val, false, false, ctx.context)
 
 		//Debug("json", tempConfig, tempData)
 

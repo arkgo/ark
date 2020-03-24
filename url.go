@@ -12,7 +12,7 @@ import (
 
 type (
 	httpUrl struct {
-		ctx *Http
+		http *Http
 	}
 )
 
@@ -26,10 +26,10 @@ func (url *httpUrl) Route(name string, values ...Map) string {
 
 	//当前站点
 	currSite := ""
-	if url.ctx != nil {
-		currSite = url.ctx.Site
+	if url.http != nil {
+		currSite = url.http.Site
 		if name == "" {
-			name = url.ctx.Name
+			name = url.http.Name
 		}
 	}
 
@@ -113,23 +113,23 @@ func (url *httpUrl) Route(name string, values ...Map) string {
 	}
 
 	//选项处理
-	if options["[back]"] != nil && url.ctx != nil {
+	if options["[back]"] != nil && url.http != nil {
 		var url = url.Back()
 		querys["backurl"] = Encrypt(url)
 	}
 	//选项处理
-	if options["[last]"] != nil && url.ctx != nil {
+	if options["[last]"] != nil && url.http != nil {
 		var url = url.Last()
 		querys["backurl"] = Encrypt(url)
 	}
 	//选项处理
-	if options["[current]"] != nil && url.ctx != nil {
+	if options["[current]"] != nil && url.http != nil {
 		var url = url.Current()
 		querys["backurl"] = Encrypt(url)
 	}
 	//自动携带原有的query信息
-	if options["[query]"] != nil && url.ctx != nil {
-		for k, v := range url.ctx.Query {
+	if options["[query]"] != nil && url.http != nil {
+		for k, v := range url.http.Query {
 			querys[k] = v
 		}
 	}
@@ -158,7 +158,7 @@ func (url *httpUrl) Route(name string, values ...Map) string {
 	}
 
 	//上下文
-	dataErr := ark.Basic.Mapping(argsConfig, dataArgsValues, dataParseValues, false, true, url.ctx)
+	dataErr := ark.Basic.Mapping(argsConfig, dataArgsValues, dataParseValues, false, true, url.http.context)
 	if dataErr == nil {
 		for k, v := range dataParseValues {
 
@@ -182,8 +182,8 @@ func (url *httpUrl) Route(name string, values ...Map) string {
 
 	//2.params中的值
 	//从params中来一下，直接参数解析
-	if url.ctx != nil {
-		for k, v := range url.ctx.Params {
+	if url.http != nil {
+		for k, v := range url.http.Params {
 			paramValues["{"+k+"}"] = v
 		}
 	}
@@ -191,7 +191,7 @@ func (url *httpUrl) Route(name string, values ...Map) string {
 	//3. 默认值
 	//从value中获取
 	autoArgsValues, autoParseValues := Map{}, Map{}
-	autoErr := ark.Basic.Mapping(argsConfig, autoArgsValues, autoParseValues, false, true, url.ctx)
+	autoErr := ark.Basic.Mapping(argsConfig, autoArgsValues, autoParseValues, false, true, url.http.context)
 	if autoErr == nil {
 		for k, v := range autoParseValues {
 			autoValues["{"+k+"}"] = v
@@ -249,8 +249,8 @@ func (url *httpUrl) Site(name string, path string, options ...Map) string {
 	ssl, socket := false, false
 
 	//如果有上下文，如果是当前站点，就使用当前域
-	if url.ctx != nil && url.ctx.Site == name {
-		uuu = url.ctx.Host
+	if url.http != nil && url.http.Site == name {
+		uuu = url.http.Host
 		if vv, ok := ark.Config.Site[name]; ok {
 			ssl = vv.Ssl
 		}
@@ -297,27 +297,27 @@ func (url *httpUrl) Site(name string, path string, options ...Map) string {
 }
 
 func (url *httpUrl) Backing() bool {
-	if url.ctx == nil {
+	if url.http == nil {
 		return false
 	}
 
-	if s, ok := url.ctx.Query["backurl"]; ok && s != "" {
+	if s, ok := url.http.Query["backurl"]; ok && s != "" {
 		return true
-	} else if url.ctx.request.Referer() != "" {
+	} else if url.http.request.Referer() != "" {
 		return true
 	}
 	return false
 }
 
 func (url *httpUrl) Back() string {
-	if url.ctx == nil {
+	if url.http == nil {
 		return "/"
 	}
 
-	if s, ok := url.ctx.Query["backurl"].(string); ok && s != "" {
+	if s, ok := url.http.Query["backurl"].(string); ok && s != "" {
 		return Decrypt(s)
-	} else if url.ctx.Header("referer") != "" {
-		return url.ctx.Header("referer")
+	} else if url.http.Header("referer") != "" {
+		return url.http.Header("referer")
 	} else {
 		//都没有，就是当前URL
 		return url.Current()
@@ -325,11 +325,11 @@ func (url *httpUrl) Back() string {
 }
 
 func (url *httpUrl) Last() string {
-	if url.ctx == nil {
+	if url.http == nil {
 		return "/"
 	}
 
-	if ref := url.ctx.request.Referer(); ref != "" {
+	if ref := url.http.request.Referer(); ref != "" {
 		return ref
 	} else {
 		//都没有，就是当前URL
@@ -338,7 +338,7 @@ func (url *httpUrl) Last() string {
 }
 
 func (url *httpUrl) Current() string {
-	if url.ctx == nil {
+	if url.http == nil {
 		return "/"
 	}
 
@@ -346,12 +346,12 @@ func (url *httpUrl) Current() string {
 
 	// return fmt.Sprintf("%s://%s%s", url.req.URL., url.req.Host, url.req.URL.RequestURI())
 
-	return url.Site(url.ctx.Site, url.ctx.request.URL.RequestURI())
+	return url.Site(url.http.Site, url.http.request.URL.RequestURI())
 }
 
 //为了view友好，expires改成Any，支持duration解析
 func (url *httpUrl) Download(target Any, name string, args ...Any) string {
-	if url.ctx == nil {
+	if url.http == nil {
 		return ""
 	}
 
@@ -375,11 +375,11 @@ func (url *httpUrl) Download(target Any, name string, args ...Any) string {
 			}
 		}
 
-		return ark.Store.safeBrowse(coding, name, url.ctx.Id, url.ctx.Ip(), expires...)
+		return ark.Store.safeBrowse(coding, name, url.http.Id, url.http.Ip(), expires...)
 
-		//url.ctx.lastError = nil
+		//url.http.lastError = nil
 		//if uuu, err := mFile.Browse(coding, name, aaaaa, expires...); err != nil {
-		//	url.ctx.lastError = errResult(err)
+		//	url.http.lastError = errResult(err)
 		//	return ""
 		//} else {
 		//	return uuu
@@ -389,7 +389,7 @@ func (url *httpUrl) Download(target Any, name string, args ...Any) string {
 	return "[无效下载]"
 }
 func (url *httpUrl) Browse(target Any, args ...Any) string {
-	if url.ctx == nil {
+	if url.http == nil {
 		return ""
 	}
 
@@ -413,10 +413,10 @@ func (url *httpUrl) Browse(target Any, args ...Any) string {
 			}
 		}
 
-		return ark.Store.safeBrowse(coding, "", url.ctx.Id, url.ctx.Ip(), expires...)
-		//url.ctx.lastError = nil
+		return ark.Store.safeBrowse(coding, "", url.http.Id, url.http.Ip(), expires...)
+		//url.http.lastError = nil
 		//if uuu, err := mFile.Browse(coding, "", aaaaa, expires...); err != nil {
-		//	url.ctx.lastError = errResult(err)
+		//	url.http.lastError = errResult(err)
 		//	return ""
 		//} else {
 		//	return uuu
@@ -426,7 +426,7 @@ func (url *httpUrl) Browse(target Any, args ...Any) string {
 	return "[无效文件]"
 }
 func (url *httpUrl) Preview(target Any, width, height, tttt int64, args ...Any) string {
-	if url.ctx == nil {
+	if url.http == nil {
 		return ""
 	}
 
@@ -450,7 +450,7 @@ func (url *httpUrl) Preview(target Any, width, height, tttt int64, args ...Any) 
 			}
 		}
 
-		return ark.Store.safePreview(coding, width, height, tttt, url.ctx.Id, url.ctx.Ip(), expires...)
+		return ark.Store.safePreview(coding, width, height, tttt, url.http.Id, url.http.Ip(), expires...)
 
 	}
 

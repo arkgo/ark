@@ -360,18 +360,18 @@ func (module *dataModule) Field(name string, field string, extends ...Map) Var {
 
 	return config
 }
-func (module *dataModule) Fields(name string, keys []string, exts ...Vars) Vars {
+func (module *dataModule) Fields(name string, keys []string, extends ...Vars) Vars {
 	if _, ok := module.tables[name]; ok {
-		return module.TableFields(name, keys, exts...)
+		return module.TableFields(name, keys, extends...)
 	} else if _, ok := module.views[name]; ok {
-		return module.ViewFields(name, keys, exts...)
+		return module.ViewFields(name, keys, extends...)
 	} else if _, ok := module.models[name]; ok {
-		return module.ModelFields(name, keys, exts...)
+		return module.ModelFields(name, keys, extends...)
 	} else {
 		return Vars{}
 	}
 }
-func (module *dataModule) TableFields(name string, keys []string, exts ...Vars) Vars {
+func (module *dataModule) TableFields(name string, keys []string, extends ...Vars) Vars {
 	fields := Vars{}
 	if config, ok := module.tables[name]; ok && config.Fields != nil {
 		//空数组一个也不返
@@ -389,8 +389,8 @@ func (module *dataModule) TableFields(name string, keys []string, exts ...Vars) 
 		}
 	}
 
-	if len(exts) > 0 {
-		for k, v := range exts[0] {
+	if len(extends) > 0 {
+		for k, v := range extends[0] {
 			if v.Nil() {
 				delete(fields, k)
 			} else {

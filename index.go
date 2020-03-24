@@ -8,11 +8,11 @@ import (
 
 var (
 	ark     *arkCore
+	Name    string
 	Mode    Env
 	Setting Map
 
-	Sites *httpSite
-	Root  *httpSite
+	Root *httpSite
 )
 
 // Register 注册中心
@@ -132,6 +132,9 @@ func Define(tttt string, require bool, name string, extends ...Map) Var {
 	if len(extends) > 0 {
 		extend := extends[0]
 
+		if vv, ok := extend["require"].(bool); ok {
+			config.Require = vv
+		}
 		if vv, ok := extend["default"]; ok {
 			config.Default = vv
 		}

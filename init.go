@@ -29,6 +29,8 @@ func config() *arkConfig {
 		Name: "ark", Mode: "dev",
 	}
 
+	Name = config.Name
+
 	cfgfile := "config.toml"
 	if len(os.Args) >= 2 {
 		cfgfile = os.Args[1]
@@ -40,18 +42,6 @@ func config() *arkConfig {
 		panic("加载配置文件失败")
 	}
 	config = &tmp
-
-	//配置的初始设化，默认值
-	switch config.Mode {
-	case "d", "dev", "develop", "development", "developing":
-		Mode = Developing
-	case "t", "test", "testing":
-		Mode = Testing
-	case "p", "pro", "prod", "product", "production":
-		Mode = Production
-	default:
-		Mode = Developing
-	}
 
 	//节点默认配置
 	if config.Node.Id <= 0 {
@@ -345,6 +335,22 @@ func config() *arkConfig {
 		config.View.Shared = "shared"
 	}
 
+	if config.Name != "" {
+		Name = config.Name
+	}
+
+	//配置的初始设化，默认值
+	switch config.Mode {
+	case "d", "dev", "develop", "development", "developing":
+		Mode = Developing
+	case "t", "test", "testing":
+		Mode = Testing
+	case "p", "pro", "prod", "product", "production":
+		Mode = Production
+	default:
+		Mode = Developing
+	}
+
 	Setting = config.Setting
 
 	return config
@@ -381,7 +387,6 @@ func build() {
 	ark.Http = newHttp()
 	ark.View = newView()
 
-	Sites = Site("*")
 	Root = Site("")
 
 	OK = Result(0, "ok", "成功")

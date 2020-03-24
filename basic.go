@@ -997,9 +997,9 @@ func (module *basicModule) cryptoDecode(name string) CryptoDecodeFunc {
 // 	//遍历配置	end
 // }
 
-func (module *basicModule) Mapping(config Vars, data Map, value Map, argn bool, pass bool, ctxs ...context) *Res {
-	var ctx context
-	if len(ctxs) > 0 {
+func (module *basicModule) Mapping(config Vars, data Map, value Map, argn bool, pass bool, ctxs ...*context) *Res {
+	var ctx *context
+	if len(ctxs) > 0 && ctxs[0] != nil {
 		ctx = ctxs[0]
 	}
 
@@ -1501,6 +1501,6 @@ func Types() map[string]Type {
 func Cryptos() map[string]Crypto {
 	return ark.Basic.Cryptos()
 }
-func Mapping(config Vars, data Map, value Map, argn bool, pass bool, ctxs ...context) *Res {
+func Mapping(config Vars, data Map, value Map, argn bool, pass bool, ctxs ...*context) *Res {
 	return ark.Basic.Mapping(config, data, value, argn, pass, ctxs...)
 }
