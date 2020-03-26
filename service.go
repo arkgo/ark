@@ -214,8 +214,9 @@ func (module *serviceModule) Invoke(ctx *context, name string, value Map, settin
 		result = ff(service)
 
 	case func(*Program) bool:
-		data = Map{
-			"result": ff(service),
+		ok := ff(service)
+		if ok == false {
+			result = Fail
 		}
 	case func(*Program) Map:
 		data = ff(service)
