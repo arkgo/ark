@@ -578,7 +578,40 @@ func (module *httpModule) Router(name string, config Router, overrides ...bool) 
 			//多method版本
 			for method, methodConfig := range routerConfig.Routing {
 				realName := fmt.Sprintf("%s.%s", routerName, method)
-				realConfig := routerConfig //从顶级复制
+				realConfig := routerConfig
+				//从顶级复制	这样有问题，realConfig中的非引用变量，是复制了，但是引用变量，是引的引用，所以，如果修改比如  realConfig.Args，会把 routerConfig也修改了
+				//MAP要重新复制
+				if routerConfig.Auth != nil {
+					realConfig.Auth = make(Auth)
+					for k,v := range routerConfig.Auth {
+						realConfig.Auth[k] = v
+					}
+				}
+				if routerConfig.Item != nil {
+					realConfig.Item = make(Item)
+					for k,v := range routerConfig.Item {
+						realConfig.Item[k] = v
+					}
+				}
+				if routerConfig.Args != nil {
+					realConfig.Args = make(Vars)
+					for k,v := range routerConfig.Args {
+						realConfig.Args[k] = v
+					}
+				}
+				if routerConfig.Data != nil {
+					realConfig.Data = make(Vars)
+					for k,v := range routerConfig.Data {
+						realConfig.Data[k] = v
+					}
+				}
+				if routerConfig.Setting != nil {
+					realConfig.Setting = make(Map)
+					for k,v := range routerConfig.Setting {
+						realConfig.Setting[k] = v
+					}
+				}
+
 
 				//相关参数
 				realConfig.Method = method
