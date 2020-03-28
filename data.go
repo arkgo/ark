@@ -672,16 +672,16 @@ func (module *dataModule) parsing(args ...Map) ([]string, []interface{}, []strin
 				opAnds := []string{}
 				for opKey, opVal := range opMap {
 					//这里要支持LIKE
-					if opKey == LIKE {
+					if opKey == SEARCH {
 						safeFts := strings.Replace(fmt.Sprintf("%v", opVal), "'", "''", -1)
 						opAnds = append(opAnds, fmt.Sprintf(`%s LIKE '%%%s%%'`, k, safeFts))
-					} else if opKey == FULL {
+					} else if opKey == FULLLIKE {
 						safeFts := strings.Replace(fmt.Sprintf("%v", opVal), "'", "''", -1)
 						opAnds = append(opAnds, fmt.Sprintf(`%s LIKE '%%%s%%'`, k, safeFts))
-					} else if opKey == LEFT {
+					} else if opKey == LEFTLIKE {
 						safeFts := strings.Replace(fmt.Sprintf("%v", opVal), "'", "''", -1)
 						opAnds = append(opAnds, fmt.Sprintf(`%s LIKE '%s%%'`, k, safeFts))
-					} else if opKey == RIGHT {
+					} else if opKey == RIGHTLIKE {
 						safeFts := strings.Replace(fmt.Sprintf("%v", opVal), "'", "''", -1)
 						opAnds = append(opAnds, fmt.Sprintf(`%s LIKE '%%%s'`, k, safeFts))
 					} else if opKey == ANY {
