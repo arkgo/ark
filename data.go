@@ -592,6 +592,14 @@ func (module *dataModule) Parse(args ...Any) (string, []Any, string, error) {
 	}
 }
 
+func (module *dataModule) orderby(key string) string {
+	dots := strings.Split(key, ".")
+	if len(dots) > 1 {
+		return fmt.Sprintf(`COALESCE(("%s"->'%s')::float8, 0)`, dots[0], dots[1])
+	}
+	return key
+}
+
 //注意，这个是实际的解析，支持递归
 func (module *dataModule) parsing(args ...Map) ([]string, []interface{}, []string) {
 
@@ -620,10 +628,10 @@ func (module *dataModule) parsing(args ...Map) ([]string, []interface{}, []strin
 			//if ov,ok := v.(string); ok && (ov==ASC || ov==DESC) {
 			if v == ASC {
 				//正序
-				orders = append(orders, fmt.Sprintf(`%s ASC`, k))
+				orders = append(orders, fmt.Sprintf(`%s ASC`, module.orderby(k)))
 			} else if v == DESC {
 				//倒序
-				orders = append(orders, fmt.Sprintf(`%s DESC`, k))
+				orders = append(orders, fmt.Sprintf(`%s DESC`, module.orderby(k)))
 
 			} else if v == RAND {
 				//随机排序
