@@ -911,7 +911,7 @@ func (ctx *Http) itemHandler() *Res {
 						if config.Error != nil {
 							return config.Error
 						} else {
-							return newResult("_item_rror_" + itemKey)
+							return newResult("_item_error_" + strings.Replace(itemKey, ".", "_", -1))
 						}
 					} else {
 						saveMap[itemKey] = item
