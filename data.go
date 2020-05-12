@@ -600,6 +600,14 @@ func (module *dataModule) orderby(key string) string {
 	return key
 }
 
+// func (module *dataModule) fieldby(key string) string {
+// 	dots := strings.Split(key, ".")
+// 	if len(dots) > 1 {
+// 		return fmt.Sprintf(`"%s"->'%s'`, dots[0], dots[1])
+// 	}
+// 	return key
+// }
+
 //注意，这个是实际的解析，支持递归
 func (module *dataModule) parsing(args ...Map) ([]string, []interface{}, []string) {
 
@@ -618,8 +626,13 @@ func (module *dataModule) parsing(args ...Map) ([]string, []interface{}, []strin
 			// 字段名处理
 			// 包含.应该是处理成json
 			// 包含:就处理成数组
+			jsoned := false
 			if dots := strings.Split(k, ":"); len(dots) >= 2 {
 				k = fmt.Sprintf(`%v%v%v[%v]`, fp, dots[0], fp, dots[1])
+			} else if dots := strings.Split(k, "."); len(dots) >= 2 {
+				//"%s"->'%s'
+				jsoned = true
+				k = fmt.Sprintf(`%v%v%v->>'%v'`, fp, dots[0], fp, dots[1])
 			} else {
 				k = fmt.Sprintf(`%v%v%v`, fp, k, fp)
 			}
@@ -817,7 +830,11 @@ func (module *dataModule) parsing(args ...Map) ([]string, []interface{}, []strin
 
 			} else {
 				ands = append(ands, fmt.Sprintf(`%s = ?`, k))
-				values = append(values, v)
+				if jsoned {
+					values = append(values, fmt.Sprintf("%v", v))
+				} else {
+					values = append(values, v)
+				}
 			}
 		}
 
