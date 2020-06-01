@@ -2,6 +2,9 @@ package ark
 
 import (
 	"math"
+	"os"
+	"path"
+	"time"
 
 	. "github.com/arkgo/asset"
 )
@@ -188,4 +191,16 @@ func VarExtend(config Vars, extends ...Vars) Vars {
 		}
 	}
 	return config
+}
+
+func TempDir() string {
+	dir := os.TempDir()
+	if ark.Config.Node.Temp != "" {
+		dir = ark.Config.Node.Temp
+	}
+	tempdir := path.Join(dir, time.Now().Format("20060102"))
+	if _, err := os.Stat(tempdir); err != nil {
+		os.MkdirAll(tempdir, 0777)
+	}
+	return tempdir
 }

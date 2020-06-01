@@ -50,6 +50,9 @@ func config() *arkConfig {
 	if config.Node.Type == "" {
 		config.Node.Type = GATEWAY
 	}
+	if config.Node.Temp == "" {
+		config.Node.Type = os.TempDir()
+	}
 
 	//基础默认配置
 	if config.Basic.State == "" {
