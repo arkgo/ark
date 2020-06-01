@@ -695,16 +695,16 @@ func (module *dataModule) parsing(args ...Map) ([]string, []interface{}, []strin
 					//这里要支持LIKE
 					if opKey == SEARCH {
 						safeFts := strings.Replace(fmt.Sprintf("%v", opVal), "'", "''", -1)
-						opAnds = append(opAnds, fmt.Sprintf(`%s LIKE '%%%s%%'`, k, safeFts))
+						opAnds = append(opAnds, fmt.Sprintf(`upper(%s) LIKE upper('%%%s%%')`, k, safeFts))
 					} else if opKey == FULLLIKE {
 						safeFts := strings.Replace(fmt.Sprintf("%v", opVal), "'", "''", -1)
-						opAnds = append(opAnds, fmt.Sprintf(`%s LIKE '%%%s%%'`, k, safeFts))
+						opAnds = append(opAnds, fmt.Sprintf(`upper(%s) LIKE upper('%%%s%%')'`, k, safeFts))
 					} else if opKey == LEFTLIKE {
 						safeFts := strings.Replace(fmt.Sprintf("%v", opVal), "'", "''", -1)
-						opAnds = append(opAnds, fmt.Sprintf(`%s LIKE '%s%%'`, k, safeFts))
+						opAnds = append(opAnds, fmt.Sprintf(`upper(%s) LIKE upper('%s%%')`, k, safeFts))
 					} else if opKey == RIGHTLIKE {
 						safeFts := strings.Replace(fmt.Sprintf("%v", opVal), "'", "''", -1)
-						opAnds = append(opAnds, fmt.Sprintf(`%s LIKE '%%%s'`, k, safeFts))
+						opAnds = append(opAnds, fmt.Sprintf(`upper(%s) LIKE upper('%%%s')`, k, safeFts))
 					} else if opKey == ANY {
 						opAnds = append(opAnds, fmt.Sprintf(`? = ANY(%s)`, k))
 						values = append(values, opVal)
