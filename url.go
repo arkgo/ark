@@ -357,7 +357,7 @@ func (url *httpUrl) Download(target Any, name string, args ...Any) string {
 
 	if coding, ok := target.(string); ok && coding != "" {
 
-		if strings.HasPrefix("http://", coding) || strings.HasPrefix("https://", coding) || strings.HasPrefix("ftp://", coding) {
+		if strings.HasPrefix(coding, "http://") || strings.HasPrefix(coding, "https://") || strings.HasPrefix(coding, "ftp://") {
 			return coding
 		}
 
@@ -395,7 +395,7 @@ func (url *httpUrl) Browse(target Any, args ...Any) string {
 
 	if coding, ok := target.(string); ok && coding != "" {
 
-		if strings.HasPrefix("http://", coding) || strings.HasPrefix("https://", coding) || strings.HasPrefix("ftp://", coding) {
+		if strings.HasPrefix(coding, "http://") || strings.HasPrefix(coding, "https://") || strings.HasPrefix(coding, "ftp://") {
 			return coding
 		}
 
@@ -432,7 +432,7 @@ func (url *httpUrl) Preview(target Any, width, height, tttt int64, args ...Any) 
 
 	if coding, ok := target.(string); ok && coding != "" {
 
-		if strings.HasPrefix("http://", coding) || strings.HasPrefix("https://", coding) || strings.HasPrefix("ftp://", coding) {
+		if strings.HasPrefix(coding, "http://") || strings.HasPrefix(coding, "https://") || strings.HasPrefix(coding, "ftp://") {
 			return coding
 		}
 
