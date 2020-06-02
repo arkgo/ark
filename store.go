@@ -330,6 +330,7 @@ func (module *storeModule) thumbnail(code string, w, h, t int64) (string, File, 
 	//先获取缩略图的文件
 	_, _, tfile, err := module.thumbnailing(data, w, h, t)
 	if err != nil {
+		Debug("生成缩图获取保存位置", err, code)
 		return "", nil, nil
 	}
 
@@ -348,6 +349,7 @@ func (module *storeModule) thumbnail(code string, w, h, t int64) (string, File, 
 		}
 		fff, err := conn.Download(data)
 		if err != nil {
+			Warning("生成缩图下载文件", err, code)
 			return "", nil, err
 		} else {
 			sfile = fff
@@ -356,6 +358,7 @@ func (module *storeModule) thumbnail(code string, w, h, t int64) (string, File, 
 		//获取存储的文件
 		_, _, fff, err := module.storaging(data)
 		if err != nil {
+			Warning("生成缩图获取文件", err, code)
 			return "", nil, err
 		} else {
 			sfile = fff
@@ -364,12 +367,14 @@ func (module *storeModule) thumbnail(code string, w, h, t int64) (string, File, 
 
 	sf, err := os.Open(sfile)
 	if err != nil {
+		Warning("生成缩图打开文件", err, code)
 		return "", nil, err
 	}
 	defer sf.Close()
 
 	cfg, err := util.DecodeImageConfig(sf)
 	if err != nil {
+		Warning("生成缩图解析图片配置", err, code)
 		return "", nil, err
 	}
 
@@ -377,6 +382,7 @@ func (module *storeModule) thumbnail(code string, w, h, t int64) (string, File, 
 	sf.Seek(0, 0)
 	img, err := imaging.Decode(sf)
 	if err != nil {
+		Warning("生成缩图解析图片", err, code)
 		return "", nil, err
 	}
 
@@ -392,6 +398,7 @@ func (module *storeModule) thumbnail(code string, w, h, t int64) (string, File, 
 	thumb := imaging.Thumbnail(img, int(width), int(height), imaging.NearestNeighbor)
 	err = imaging.Save(thumb, tfile)
 	if err != nil {
+		Warning("生成缩图保存文件", err, code)
 		return "", nil, err
 	}
 
@@ -490,6 +497,7 @@ func (sc *storeFile) stored() bool {
 }
 func (sc *storeFile) isimage() bool {
 	return sc.tttt == "jpg" ||
+		sc.tttt == "jpeg" ||
 		sc.tttt == "png" ||
 		sc.tttt == "gif" ||
 		sc.tttt == "bmp"
@@ -670,7 +678,7 @@ func (module *storeModule) safePreview(code string, w, h, t int64, id, ip string
 	//判断一下，是不是，要丢到存储层去处理
 	coding := module.Decode(code)
 	if coding == nil {
-		return "[error code]"
+		return code
 	}
 	if coding.conn != "" {
 		if cfg, ok := ark.Config.Store[coding.conn]; ok {
