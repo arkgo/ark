@@ -138,7 +138,7 @@ func built_router() {
 				return
 			}
 			if address > 0 && AddressTokenized() && ctx.Ip() != util.Num2Ip(address) {
-				ark.Logger.Warning("无效访问令牌5", ctx.Ip(), util.Num2Ip(address))
+				// ark.Logger.Warning("无效访问令牌5", ctx.Ip(), util.Num2Ip(address))
 				ctx.Text("无效访问令牌5")
 				return
 			}
