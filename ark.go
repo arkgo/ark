@@ -105,6 +105,8 @@ func (ark *arkCore) Start() {
 
 	ark.Logger.output("%s node %d started on %d", ark.Config.Name, ark.Config.Node.Id, ark.Config.Http.Port)
 	ark.running = true
+
+	Trigger(StartTrigger)
 }
 func (ark *arkCore) Waiting() {
 	exitChan := make(chan os.Signal, 1)
@@ -126,6 +128,9 @@ func (ark *arkCore) Stop() {
 
 	ark.Mutex.exiting()
 	ark.Logger.exiting()
+
+	//同步执行
+	Execute(StopTrigger)
 }
 
 func (ark *arkCore) Go() {

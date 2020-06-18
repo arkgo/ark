@@ -20,4 +20,7 @@ const (
 	DataChangeTrigger  = "$.data.change"
 	DataRemoveTrigger  = "$.data.remove"
 	DataRecoverTrigger = "$.data.recover"
+
+	StartTrigger = "$.ark.start"
+	StopTrigger  = "$.ark.stop"
 )

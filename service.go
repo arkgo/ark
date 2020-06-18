@@ -512,7 +512,7 @@ func Library(name string) *library {
 	return ark.Service.Library(name)
 }
 
-//触发执行，异步
+//方法参数
 func Arguments(name string, extends ...Vars) Vars {
 	return ark.Service.Arguments(name, extends...)
 }
