@@ -1570,5 +1570,10 @@ func (ctx *Http) Ip() string {
 		}
 	}
 
+	//处理ip，可能有多个
+	ips := strings.Split(ip, ", ")
+	if len(ips) > 0 {
+		return ips[len(ips)-1]
+	}
 	return ip
 }
