@@ -171,10 +171,11 @@ func (module *storeModule) getConnect(names ...string) StoreConnect {
 //上传文件，是不是随便选一个库，还是选第一个库
 func (module *storeModule) Upload(target string, metadata Map, bases ...string) (File, Files, error) {
 	conn := module.getConnect(bases...)
-	if conn == nil {
-		return nil, nil, errors.New("无效连接")
+	if conn != nil {
+		return conn.Upload(target, metadata)
 	}
-	return conn.Upload(target, metadata)
+	//没有配置存储库的时候，直接用保存到文件
+	return module.Storage(target)
 }
 
 //下载文件，集成file和store
