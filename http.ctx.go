@@ -300,7 +300,7 @@ func (ctx *Http) clientHandler() *Res {
 	//eses := ark.Codec.Decrypt(cs)
 
 	args := Vars{
-		"client": Var{Type: "string", Require: true, Decode: ctx.siteConfig.Decode},
+		"client": Var{Type: "string", Required: true, Decode: ctx.siteConfig.Decode},
 	}
 	data := Map{
 		"client": cs,
@@ -834,7 +834,7 @@ func (ctx *Http) authHandler() *Res {
 					item := db.Table(authConfig.Table).Entity(id)
 
 					if item == nil {
-						if authConfig.Require {
+						if authConfig.Required {
 							if authConfig.Error != nil {
 								return authConfig.Error
 							} else {
@@ -852,7 +852,7 @@ func (ctx *Http) authHandler() *Res {
 
 			//到这里是未登录的
 			//而且是必须要登录，才显示错误
-			if ohNo && authConfig.Require {
+			if ohNo && authConfig.Required {
 				if authConfig.Empty != nil {
 					return authConfig.Empty
 				} else {
@@ -894,7 +894,7 @@ func (ctx *Http) itemHandler() *Res {
 				realVal = vv
 			}
 
-			if realVal == nil && config.Require {
+			if realVal == nil && config.Required {
 				if config.Empty != nil {
 					return config.Empty
 				} else {
@@ -907,7 +907,7 @@ func (ctx *Http) itemHandler() *Res {
 					//要查询库
 					db := ctx.dataBase(config.Base)
 					item := db.Table(config.Table).Entity(realVal)
-					if config.Require && (db.Erred() != nil || item == nil) {
+					if config.Required && (db.Erred() != nil || item == nil) {
 						if config.Error != nil {
 							return config.Error
 						} else {
@@ -1529,7 +1529,7 @@ func (ctx *Http) Answer(res *Res, args ...Map) {
 	var data Map
 	if res == nil {
 		data = make(Map)
-		for k,v := range ctx.Data {
+		for k, v := range ctx.Data {
 			data[k] = v
 		}
 	}
@@ -1537,7 +1537,7 @@ func (ctx *Http) Answer(res *Res, args ...Map) {
 		if data == nil {
 			data = make(Map)
 		}
-		for k,v := range args[0] {
+		for k, v := range args[0] {
 			data[k] = v
 		}
 	}

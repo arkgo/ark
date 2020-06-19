@@ -259,25 +259,25 @@ type (
 
 	Auth map[string]Sign
 	Sign struct {
-		Sign    string `json:"sign"`
-		Require bool   `json:"require"`
-		Base    string `json:"base"`
-		Table   string `json:"table"`
-		Name    string `json:"name"`
-		Desc    string `json:"desc"`
-		Empty   *Res   `json:"-"`
-		Error   *Res   `json:"-"`
+		Sign     string `json:"sign"`
+		Required bool   `json:"require"`
+		Base     string `json:"base"`
+		Table    string `json:"table"`
+		Name     string `json:"name"`
+		Desc     string `json:"desc"`
+		Empty    *Res   `json:"-"`
+		Error    *Res   `json:"-"`
 	}
 	Item   map[string]Entity
 	Entity struct {
-		Args    string `json:"args"`
-		Require bool   `json:"require"`
-		Base    string `json:"base"`
-		Table   string `json:"table"`
-		Name    string `json:"name"`
-		Desc    string `json:"desc"`
-		Empty   *Res   `json:"-"`
-		Error   *Res   `json:"-"`
+		Args     string `json:"args"`
+		Required bool   `json:"require"`
+		Base     string `json:"base"`
+		Table    string `json:"table"`
+		Name     string `json:"name"`
+		Desc     string `json:"desc"`
+		Empty    *Res   `json:"-"`
+		Error    *Res   `json:"-"`
 	}
 )
 
@@ -583,35 +583,34 @@ func (module *httpModule) Router(name string, config Router, overrides ...bool) 
 				//MAP要重新复制
 				if routerConfig.Auth != nil {
 					realConfig.Auth = make(Auth)
-					for k,v := range routerConfig.Auth {
+					for k, v := range routerConfig.Auth {
 						realConfig.Auth[k] = v
 					}
 				}
 				if routerConfig.Item != nil {
 					realConfig.Item = make(Item)
-					for k,v := range routerConfig.Item {
+					for k, v := range routerConfig.Item {
 						realConfig.Item[k] = v
 					}
 				}
 				if routerConfig.Args != nil {
 					realConfig.Args = make(Vars)
-					for k,v := range routerConfig.Args {
+					for k, v := range routerConfig.Args {
 						realConfig.Args[k] = v
 					}
 				}
 				if routerConfig.Data != nil {
 					realConfig.Data = make(Vars)
-					for k,v := range routerConfig.Data {
+					for k, v := range routerConfig.Data {
 						realConfig.Data[k] = v
 					}
 				}
 				if routerConfig.Setting != nil {
 					realConfig.Setting = make(Map)
-					for k,v := range routerConfig.Setting {
+					for k, v := range routerConfig.Setting {
 						realConfig.Setting[k] = v
 					}
 				}
-
 
 				//相关参数
 				realConfig.Method = method
@@ -1557,7 +1556,7 @@ func (module *httpModule) bodyApi(ctx *Http, body httpApiBody) {
 
 		tempConfig := Vars{
 			"data": Var{
-				Type: "json", Require: true, Encode: crypto,
+				Type: "json", Required: true, Encode: crypto,
 			},
 		}
 		tempData := Map{
@@ -1568,7 +1567,7 @@ func (module *httpModule) bodyApi(ctx *Http, body httpApiBody) {
 		if ctx.Config.Data != nil {
 			tempConfig = Vars{
 				"data": Var{
-					Type: "json", Require: true, Encode: crypto,
+					Type: "json", Required: true, Encode: crypto,
 					Children: ctx.Config.Data,
 				},
 			}

@@ -106,7 +106,7 @@ type (
 	// Vars map[string]Var
 	// Var  struct {
 	// 	Type     string `json:"type"`
-	// 	Require  bool   `json:"require"`
+	// 	Required  bool   `json:"require"`
 	// 	Unique   bool   `json:"unique"`
 	// 	Nullable bool   `json:"nullable"`
 	// 	Name     string `json:"name"`
@@ -344,7 +344,7 @@ func (module *dataModule) Field(name string, field string, extends ...Map) Var {
 		mmm := extends[0]
 
 		if vv, ok := mmm["require"].(bool); ok {
-			config.Require = vv
+			config.Required = vv
 		}
 		if vv, ok := mmm["default"]; ok {
 			config.Default = vv

@@ -129,14 +129,14 @@ func Register(args ...Any) {
 
 func Define(tttt string, require bool, name string, extends ...Map) Var {
 	config := Var{
-		Type: tttt, Require: require, Name: name,
+		Type: tttt, Required: require, Name: name,
 	}
 
 	if len(extends) > 0 {
 		extend := extends[0]
 
 		if vv, ok := extend["require"].(bool); ok {
-			config.Require = vv
+			config.Required = vv
 		}
 		if vv, ok := extend["default"]; ok {
 			config.Default = vv
@@ -170,10 +170,10 @@ func Precision(f float64, prec int, rounds ...bool) float64 {
 func InvokingConfig(offset, limit int64, extends ...Vars) Vars {
 	config := Vars{
 		"offset": Var{
-			Type: "int", Require: true, Default: offset, Name: "offset", Desc: "offset",
+			Type: "int", Required: true, Default: offset, Name: "offset", Desc: "offset",
 		},
 		"limit": Var{
-			Type: "int", Require: true, Default: limit, Name: "limit", Desc: "limit",
+			Type: "int", Required: true, Default: limit, Name: "limit", Desc: "limit",
 		},
 	}
 

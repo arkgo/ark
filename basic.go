@@ -1037,7 +1037,7 @@ func (module *basicModule) Mapping(config Vars, data Map, value Map, argn bool, 
 		//麻烦来了，web.args用下面这样处理不了
 		//if fieldConfig, ok := fv.(map[string]interface{}); ok {
 
-		fieldMust, fieldEmpty := fieldConfig.Require, fieldConfig.Nullable
+		fieldMust, fieldEmpty := fieldConfig.Required, fieldConfig.Nullable
 		fieldValue, fieldExist := data[fieldName]
 		fieldAuto, fieldJson := fieldConfig.Default, fieldConfig.Children
 		//_, fieldEmpty = data[fieldName]

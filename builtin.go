@@ -23,14 +23,14 @@ func built_router() {
 				Name: "浏览文件", Desc: "浏览文件",
 				Args: Vars{
 					"code": Var{
-						Type: "string", Require: true, Name: "文件编码", Desc: "文件编码",
+						Type: "string", Required: true, Name: "文件编码", Desc: "文件编码",
 					},
 					"token": Var{
-						Type: "[int]", Require: true, Name: "令牌", Desc: "令牌",
+						Type: "[int]", Required: true, Name: "令牌", Desc: "令牌",
 						Encode: "digits", Decode: "digits",
 					},
 					"name": Var{
-						Type: "string", Require: false, Name: "自定义文件名", Desc: "自定义文件名",
+						Type: "string", Required: false, Name: "自定义文件名", Desc: "自定义文件名",
 					},
 				},
 				Action: func(ctx *Http) {
@@ -85,14 +85,14 @@ func built_router() {
 		Name: "预览文件", Desc: "预览文件",
 		Args: Vars{
 			"code": Var{
-				Type: "string", Require: true, Name: "文件编码", Desc: "文件编码",
+				Type: "string", Required: true, Name: "文件编码", Desc: "文件编码",
 			},
 			"size": Var{
-				Type: "[int]", Require: true, Name: "文件编码", Desc: "文件编码",
+				Type: "[int]", Required: true, Name: "文件编码", Desc: "文件编码",
 				Encode: "digits", Decode: "digits",
 			},
 			"token": Var{
-				Type: "[int]", Require: true, Name: "令牌", Desc: "令牌",
+				Type: "[int]", Required: true, Name: "令牌", Desc: "令牌",
 				Encode: "digits", Decode: "digits",
 			},
 		},
