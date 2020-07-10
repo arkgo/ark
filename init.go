@@ -266,6 +266,11 @@ func config() *arkConfig {
 	if config.Http.Shared == "" {
 		config.Http.Shared = "shared"
 	}
+	if config.Http.Defaults == nil || len(config.Http.Defaults) == 0 {
+		config.Http.Defaults = []string{
+			"index.html", "default.html", "index.htm", "default.html",
+		}
+	}
 
 	//http默认驱动
 	config.hosts = make(map[string]string)

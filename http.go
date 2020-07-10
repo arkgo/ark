@@ -34,6 +34,8 @@ type (
 		Static string `toml:"static"`
 		Shared string `toml:"shared"`
 
+		Defaults []string `toml:"defaults"`
+
 		Setting Map `toml:"setting"`
 	}
 
@@ -1266,21 +1268,40 @@ func (module *httpModule) request(ctx *Http) {
 		//路由不存在， 找静态文件
 
 		//静态文件放在这里处理
+		isDir := false
 		file := ""
 		sitePath := path.Join(ark.Config.Http.Static, ctx.Site, ctx.Path)
-		if fi, err := os.Stat(sitePath); err == nil && fi.IsDir() == false {
+		if fi, err := os.Stat(sitePath); err == nil {
+			isDir = fi.IsDir()
 			file = sitePath
 		} else {
 			sharedPath := path.Join(ark.Config.Http.Static, ark.Config.Http.Shared, ctx.Path)
-			if fi, err := os.Stat(sharedPath); err == nil && fi.IsDir() == false {
+			if fi, err := os.Stat(sharedPath); err == nil {
+				isDir = fi.IsDir()
 				file = sharedPath
+			}
+		}
+
+		//如果是目录，要遍历默认文档
+		if isDir {
+			tempFile := file
+			file = ""
+			if len(ark.Config.Http.Defaults) == 0 {
+				file = ""
+			} else {
+				for _, doc := range ark.Config.Http.Defaults {
+					docPath := path.Join(tempFile, doc)
+					if fi, err := os.Stat(docPath); err == nil && fi.IsDir() == false {
+						file = docPath
+						break
+					}
+				}
 			}
 		}
 
 		if file != "" {
 			ctx.File(file, "")
 		} else {
-
 			ctx.Found()
 		}
 
