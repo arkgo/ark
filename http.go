@@ -539,7 +539,7 @@ func (module *httpModule) exiting() {
 
 func (module *httpModule) Router(name string, config Router, overrides ...bool) {
 	module.mutex.Lock()
-	module.mutex.Unlock()
+	defer module.mutex.Unlock()
 
 	override := true
 	if len(overrides) > 0 {
