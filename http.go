@@ -1,5 +1,7 @@
 package ark
 
+//bug http整个注册router,handler,filter 顺序都有问题，因为map是无序的，所以会有执行顺序的问题
+
 import (
 	"encoding/xml"
 	"fmt"
@@ -140,6 +142,7 @@ type (
 		drivers map[string]HttpDriver
 
 		routers       map[string]Router
+		routerNames   []string
 		routerActions map[string][]HttpFunc
 
 		//拦截器
@@ -288,6 +291,7 @@ func newHttp() *httpModule {
 		drivers: make(map[string]HttpDriver),
 
 		routers:       make(map[string]Router),
+		routerNames:   make([]string, 0),
 		routerActions: make(map[string][]HttpFunc),
 
 		requestFilters:  make(map[string]RequestFilter),
@@ -366,9 +370,11 @@ func (module *httpModule) initing() {
 	connect.Accept(module.serve)
 
 	//注册路由
-	for k, v := range module.routers {
-		regis := module.registering(v)
-		err := connect.Register(k, regis)
+	// for k, v := range module.routers {
+	for _, name := range module.routerNames {
+		config := module.routers[name]
+		regis := module.registering(config)
+		err := connect.Register(name, regis)
 		if err != nil {
 			panic("[HTTP]注册失败：" + err.Error())
 		}
@@ -735,9 +741,11 @@ func (module *httpModule) Router(name string, config Router, overrides ...bool) 
 
 		if override {
 			module.routers[key] = val
+			module.routerNames = append(module.routerNames, key)
 		} else {
 			if _, ok := module.routers[key]; ok == false {
 				module.routers[key] = val
+				module.routerNames = append(module.routerNames, key)
 			}
 		}
 	}
