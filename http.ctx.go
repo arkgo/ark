@@ -1516,8 +1516,6 @@ func (ctx *Http) Answer(res *Res, args ...Map) {
 	if res != nil {
 		code = ark.Basic.Code(res.Text, res.Code)
 		text = ctx.String(res.Text, res.Args...)
-	} else {
-
 	}
 
 	if res.OK() {
@@ -1527,7 +1525,7 @@ func (ctx *Http) Answer(res *Res, args ...Map) {
 	}
 
 	var data Map
-	if res == nil {
+	if res.OK() {
 		data = make(Map)
 		for k, v := range ctx.Data {
 			data[k] = v
