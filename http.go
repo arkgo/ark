@@ -1609,8 +1609,10 @@ func (module *httpModule) bodyApi(ctx *Http, body httpApiBody) {
 
 		if res.OK() {
 			//处理后的data
+			ctx.Code = http.StatusOK
 			json["data"] = val["data"]
 		} else {
+			ctx.Code = http.StatusInternalServerError
 			json["code"] = ark.Basic.Code(res.Text)
 			json["text"] = ctx.String(res.Text, res.Args...)
 		}
