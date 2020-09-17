@@ -1570,6 +1570,8 @@ func (module *httpModule) bodyApi(ctx *Http, body httpApiBody) {
 	}
 
 	if body.data != nil {
+		//如果body.code == 0 才成功，才需要按套路来输出
+		//否则，传过来什么，就直接输出什么
 
 		crypto := ctx.siteConfig.Encode
 		if vv, ok := ctx.Setting["crypto"].(bool); ok && vv == false {
@@ -1593,7 +1595,9 @@ func (module *httpModule) bodyApi(ctx *Http, body httpApiBody) {
 		}
 
 		//有自定义返回数据类型
-		if ctx.Config.Data != nil {
+		//如果body.code == 0 才成功，才需要按套路来输出
+		//否则，传过来什么，就直接输出什么
+		if ctx.Config.Data != nil && body.code == 0 {
 			tempConfig = Vars{
 				"data": Var{
 					Type: "json", Required: true, Encode: crypto,
@@ -1609,15 +1613,17 @@ func (module *httpModule) bodyApi(ctx *Http, body httpApiBody) {
 
 		if res.OK() {
 			//处理后的data
-			ctx.Code = http.StatusOK
+			// if body.code == 0 {
+			// 	ctx.Code = http.StatusOK
+			// }
 			json["data"] = val["data"]
 		} else {
-			ctx.Code = http.StatusInternalServerError
 			json["code"] = ark.Basic.Code(res.Text)
 			json["text"] = ctx.String(res.Text, res.Args...)
 		}
-
 	}
+
+	// ark.Logger.Debug("json", json)
 
 	//转到jsonbody去处理
 	module.bodyJson(ctx, httpJsonBody{json})
