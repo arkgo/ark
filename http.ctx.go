@@ -408,7 +408,7 @@ func (ctx *Http) formUploadHandler(values []string) []Map {
 						defer save.Close()
 						if _, err := save.Write(baseBytes); err == nil {
 							files = append(files, Map{
-								//"hash":      hash,
+								"hash":      hash,
 								"filename":  filename,
 								"extension": strings.ToLower(extension),
 								"mimetype":  mimeType,
