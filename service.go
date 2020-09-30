@@ -229,6 +229,12 @@ func (module *serviceModule) Invoke(ctx *context, name string, value Map, settin
 		items, res := ff(service)
 		data = Map{"items": items}
 		result = res
+	case func(*Program) int64:
+		count := ff(service)
+		data = Map{"count": count}
+	case func(*Program) float64:
+		count := ff(service)
+		data = Map{"count": count}
 	case func(*Program) (int64, []Map):
 		count, items := ff(service)
 		data = Map{"count": count, "items": items}
