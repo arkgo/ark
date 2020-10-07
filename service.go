@@ -238,10 +238,19 @@ func (module *serviceModule) Invoke(ctx *context, name string, value Map, settin
 	case func(*Program) (int64, []Map):
 		count, items := ff(service)
 		data = Map{"count": count, "items": items}
+	case func(*Program) (int64, []Map, *Res):
+		count, items, res := ff(service)
+		result = res
+		data = Map{"count": count, "items": items}
 	case func(*Program) (Map, []Map):
 		item, items := ff(service)
 		data = Map{"item": item, "items": items}
+	case func(*Program) (Map, []Map, *Res):
+		item, items, res := ff(service)
+		result = res
+		data = Map{"item": item, "items": items}
 	}
+
 
 	//参数解析
 	if config.Data != nil {
