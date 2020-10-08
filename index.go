@@ -144,6 +144,9 @@ func Define(tttt string, require bool, name string, extends ...Map) Var {
 		if vv, ok := extend["children"].(Vars); ok {
 			config.Children = vv
 		}
+		if vv, ok := extend["json"].(Vars); ok {
+			config.Children = vv
+		}
 		if vv, ok := extend["setting"].(Map); ok {
 			config.Setting = vv
 		}
