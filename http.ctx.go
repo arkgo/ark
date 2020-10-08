@@ -1562,10 +1562,12 @@ func (ctx *Http) Ip() string {
 	} else if realIp := ctx.request.Header.Get("X-Real-IP"); realIp != "" {
 		ip = realIp
 	} else {
-		newip, _, err := net.SplitHostPort(ctx.request.RemoteAddr)
-		if err == nil {
-			ip = newip
-		}
+		ip = ctx.request.RemoteAddr
+	}
+
+	newip, _, err := net.SplitHostPort(ip)
+	if err == nil {
+		ip = newip
 	}
 
 	//处理ip，可能有多个

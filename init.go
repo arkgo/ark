@@ -1,11 +1,11 @@
 package ark
 
 import (
-	"errors"
 	"os"
 	"path"
 	"strings"
 	"time"
+	"fmt"
 
 	. "github.com/arkgo/asset"
 	"github.com/arkgo/asset/toml"
@@ -20,8 +20,9 @@ func loading(file string, out Any) error {
 	if _, err := os.Stat(file); err == nil {
 		_, err := toml.DecodeFile(file, out)
 		return err
+	} else {
+		return err
 	}
-	return errors.New("nothing to do")
 }
 
 func config() *arkConfig {
@@ -39,6 +40,7 @@ func config() *arkConfig {
 	var tmp arkConfig
 	err := loading(cfgfile, &tmp)
 	if err != nil {
+		fmt.Println("config", err, cfgfile, os.Args)
 		panic("加载配置文件失败")
 	}
 	config = &tmp
