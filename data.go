@@ -368,6 +368,9 @@ func (module *dataModule) Fields(name string, keys []string, extends ...Vars) Va
 	} else if _, ok := module.models[name]; ok {
 		return module.ModelFields(name, keys, extends...)
 	} else {
+		if len(extends) > 0 {
+			return extends[0]
+		}
 		return Vars{}
 	}
 }
