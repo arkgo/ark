@@ -1639,7 +1639,7 @@ func (module *httpModule) bodyFile(ctx *Http, body httpFileBody) {
 	}
 	//加入自定义文件名
 	if body.name != "" {
-		res.Header().Set("Content-Disposition", fmt.Sprintf("attachment;filename=%v;", body.name))
+		res.Header().Set("Content-Disposition", fmt.Sprintf("attachment;filename=%v;", url.QueryEscape(body.name)))
 	}
 
 	http.ServeFile(res, req, body.file)
@@ -1656,7 +1656,7 @@ func (module *httpModule) bodyDown(ctx *Http, body httpDownBody) {
 	res.Header().Set("Content-Type", fmt.Sprintf("%v; charset=%v", ctx.Type, ctx.Charset()))
 	//加入自定义文件名
 	if body.name != "" {
-		res.Header().Set("Content-Disposition", fmt.Sprintf("attachment;filename=%v;", body.name))
+		res.Header().Set("Content-Disposition", fmt.Sprintf("attachment;filename=%v;", url.QueryEscape(body.name)))
 	}
 
 	res.WriteHeader(ctx.Code)
@@ -1675,7 +1675,7 @@ func (module *httpModule) bodyBuffer(ctx *Http, body httpBufferBody) {
 	res.Header().Set("Content-Type", fmt.Sprintf("%v; charset=%v", ctx.Type, ctx.Charset()))
 	//加入自定义文件名
 	if body.name != "" {
-		res.Header().Set("Content-Disposition", fmt.Sprintf("attachment;filename=%v;", body.name))
+		res.Header().Set("Content-Disposition", fmt.Sprintf("attachment;filename=%v;", url.QueryEscape(body.name)))
 	}
 
 	res.WriteHeader(ctx.Code)
