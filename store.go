@@ -608,7 +608,7 @@ func (module *storeModule) Decode(code string) *storeFile {
 }
 
 func (module *storeModule) Browse(code, name string, expires ...time.Duration) string {
-	return module.safeBrowse(code, name, "", "", expires...)
+	return module.safeBrowse(code, name, Enhash(0), "127.0.0.1", expires...)
 }
 func (module *storeModule) safeBrowse(code string, name string, id, ip string, expires ...time.Duration) string {
 
@@ -672,7 +672,7 @@ func (module *storeModule) safeBrowse(code string, name string, id, ip string, e
 
 }
 func (module *storeModule) Preview(code string, w, h, t int64, expires ...time.Duration) string {
-	return module.safePreview(code, w, h, t, "", "", expires...)
+	return module.safePreview(code, w, h, t, Enhash(0), "0.0.0.0", expires...)
 }
 func (module *storeModule) safePreview(code string, w, h, t int64, id, ip string, expires ...time.Duration) string {
 
