@@ -474,17 +474,36 @@ func (module *dataModule) Options(name, field string) Map {
 		return Map{}
 	}
 }
+//2021-03-04支持一级子字段的option
 func (module *dataModule) TableOptions(name, field string) Map {
 	options := Map{}
-	if config, ok := module.tables[name]; ok && config.Fields != nil {
-		if field, ok := config.Fields[field]; ok {
-			if field.Option != nil {
-				for k, v := range field.Option {
-					options[k] = v
+	fields := strings.Split(field, ".")
+	if len(fields) > 1 {
+		field = fields[0]
+		child := fields[1]
+		if config, ok := module.tables[name]; ok && config.Fields != nil {
+			if field, ok := config.Fields[field]; ok {
+				if childConfig,ok := field.Children[child]; ok {
+					if childConfig.Option != nil {
+						for k, v := range childConfig.Option {
+							options[k] = v
+						}
+					}
+				}
+			}
+		}
+	} else {
+		if config, ok := module.tables[name]; ok && config.Fields != nil {
+			if field, ok := config.Fields[field]; ok {
+				if field.Option != nil {
+					for k, v := range field.Option {
+						options[k] = v
+					}
 				}
 			}
 		}
 	}
+
 	return options
 }
 func (module *dataModule) ViewOptions(name, field string) Map {
