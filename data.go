@@ -766,6 +766,42 @@ func (module *dataModule) parsing(args ...Map) ([]string, []interface{}, []strin
 							values = append(values, v)
 						}
 
+					} else if opKey == NOR {
+
+						realArgs := []string{}
+						realVals := []Any{}
+						if vvs,ok := opVal.([]Any); OK {
+							for _,vv := range vvs {
+								if vv == nil {
+									realArgs = append(realArgs, fmt.Sprintf(`%s is not null`, k))
+								} else {
+									realArgs = append(realArgs, fmt.Sprintf(`%s!=?`, k))
+									realVals = append(realVals, vv)
+								}
+
+							}
+						} else if vvs,ok := opVal.([]int64); OK {
+							for _,vv := range vvs {
+								realArgs = append(realArgs, fmt.Sprintf(`%s!=?`, k))
+								realVals = append(realVals, vv)
+							}
+						} else if vvs,ok := opVal.([]float64); OK {
+							for _,vv := range vvs {
+								realArgs = append(realArgs, fmt.Sprintf(`%s!=?`, k))
+								realVals = append(realVals, vv)
+							}
+						} else if vvs,ok := opVal.([]string); OK {
+							for _,vv := range vvs {
+								realArgs = append(realArgs, fmt.Sprintf(`%s!=?`, k))
+								realVals = append(realVals, vv)
+							}
+						}
+
+						opAnds = append(opAnds, strings.Join(realArgs, " AND "))
+						for _, v := range realVals {
+							values = append(values, v)
+						}
+
 					} else if opKey == IN {
 						//IN (?,?,?)
 
