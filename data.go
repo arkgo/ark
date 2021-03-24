@@ -10,6 +10,21 @@ import (
 	"github.com/arkgo/asset/hashring"
 )
 
+//data
+//asdfasdf
+//data
+//asdfasdf
+//data
+//asdfasdf
+//data
+//asdfasdf
+//data
+//asdfasdf
+//data
+//asdfasdf
+//data
+//asdfasdf
+
 type (
 	DataConfig struct {
 		Driver  string `toml:"driver"`
@@ -474,6 +489,7 @@ func (module *dataModule) Options(name, field string) Map {
 		return Map{}
 	}
 }
+
 //2021-03-04支持一级子字段的option
 func (module *dataModule) TableOptions(name, field string) Map {
 	options := Map{}
@@ -483,7 +499,7 @@ func (module *dataModule) TableOptions(name, field string) Map {
 		child := fields[1]
 		if config, ok := module.tables[name]; ok && config.Fields != nil {
 			if field, ok := config.Fields[field]; ok {
-				if childConfig,ok := field.Children[child]; ok {
+				if childConfig, ok := field.Children[child]; ok {
 					if childConfig.Option != nil {
 						for k, v := range childConfig.Option {
 							options[k] = v
@@ -734,8 +750,8 @@ func (module *dataModule) parsing(args ...Map) ([]string, []interface{}, []strin
 
 						realArgs := []string{}
 						realVals := []Any{}
-						if vvs,ok := opVal.([]Any); OK {
-							for _,vv := range vvs {
+						if vvs, ok := opVal.([]Any); ok {
+							for _, vv := range vvs {
 								if vv == nil {
 									realArgs = append(realArgs, fmt.Sprintf(`%s is null`, k))
 								} else {
@@ -744,18 +760,18 @@ func (module *dataModule) parsing(args ...Map) ([]string, []interface{}, []strin
 								}
 
 							}
-						} else if vvs,ok := opVal.([]int64); OK {
-							for _,vv := range vvs {
+						} else if vvs, ok := opVal.([]int64); ok {
+							for _, vv := range vvs {
 								realArgs = append(realArgs, fmt.Sprintf(`%s=?`, k))
 								realVals = append(realVals, vv)
 							}
-						} else if vvs,ok := opVal.([]float64); OK {
-							for _,vv := range vvs {
+						} else if vvs, ok := opVal.([]float64); ok {
+							for _, vv := range vvs {
 								realArgs = append(realArgs, fmt.Sprintf(`%s=?`, k))
 								realVals = append(realVals, vv)
 							}
-						} else if vvs,ok := opVal.([]string); OK {
-							for _,vv := range vvs {
+						} else if vvs, ok := opVal.([]string); ok {
+							for _, vv := range vvs {
 								realArgs = append(realArgs, fmt.Sprintf(`%s=?`, k))
 								realVals = append(realVals, vv)
 							}
@@ -770,8 +786,8 @@ func (module *dataModule) parsing(args ...Map) ([]string, []interface{}, []strin
 
 						realArgs := []string{}
 						realVals := []Any{}
-						if vvs,ok := opVal.([]Any); OK {
-							for _,vv := range vvs {
+						if vvs, ok := opVal.([]Any); ok {
+							for _, vv := range vvs {
 								if vv == nil {
 									realArgs = append(realArgs, fmt.Sprintf(`%s is not null`, k))
 								} else {
@@ -780,18 +796,18 @@ func (module *dataModule) parsing(args ...Map) ([]string, []interface{}, []strin
 								}
 
 							}
-						} else if vvs,ok := opVal.([]int64); OK {
-							for _,vv := range vvs {
+						} else if vvs, ok := opVal.([]int64); ok {
+							for _, vv := range vvs {
 								realArgs = append(realArgs, fmt.Sprintf(`%s!=?`, k))
 								realVals = append(realVals, vv)
 							}
-						} else if vvs,ok := opVal.([]float64); OK {
-							for _,vv := range vvs {
+						} else if vvs, ok := opVal.([]float64); ok {
+							for _, vv := range vvs {
 								realArgs = append(realArgs, fmt.Sprintf(`%s!=?`, k))
 								realVals = append(realVals, vv)
 							}
-						} else if vvs,ok := opVal.([]string); OK {
-							for _,vv := range vvs {
+						} else if vvs, ok := opVal.([]string); ok {
+							for _, vv := range vvs {
 								realArgs = append(realArgs, fmt.Sprintf(`%s!=?`, k))
 								realVals = append(realVals, vv)
 							}
