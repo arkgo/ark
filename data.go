@@ -786,34 +786,39 @@ func (module *dataModule) parsing(args ...Map) ([]string, []interface{}, []strin
 
 						realArgs := []string{}
 						realVals := []Any{}
+						incNull := true
 						if vvs, ok := opVal.([]Any); ok {
 							for _, vv := range vvs {
 								if vv == nil {
-									realArgs = append(realArgs, fmt.Sprintf(`%s is not null`, k))
+									incNull = false
 								} else {
-									realArgs = append(realArgs, fmt.Sprintf(`%s!=?`, k))
+									realArgs = append(realArgs, fmt.Sprintf(`%s=?`, k))
 									realVals = append(realVals, vv)
 								}
-
 							}
 						} else if vvs, ok := opVal.([]int64); ok {
 							for _, vv := range vvs {
-								realArgs = append(realArgs, fmt.Sprintf(`%s!=?`, k))
+								realArgs = append(realArgs, fmt.Sprintf(`%s=?`, k))
 								realVals = append(realVals, vv)
 							}
 						} else if vvs, ok := opVal.([]float64); ok {
 							for _, vv := range vvs {
-								realArgs = append(realArgs, fmt.Sprintf(`%s!=?`, k))
+								realArgs = append(realArgs, fmt.Sprintf(`%s==?`, k))
 								realVals = append(realVals, vv)
 							}
 						} else if vvs, ok := opVal.([]string); ok {
 							for _, vv := range vvs {
-								realArgs = append(realArgs, fmt.Sprintf(`%s!=?`, k))
+								realArgs = append(realArgs, fmt.Sprintf(`%s==?`, k))
 								realVals = append(realVals, vv)
 							}
 						}
 
-						opAnds = append(opAnds, strings.Join(realArgs, " AND "))
+						if incNull {
+							opAnds = append(opAnds, fmt.Sprintf(`NOT (%s) or %s is null`, strings.Join(realArgs, " OR "), k))
+						} else {
+							opAnds = append(opAnds, fmt.Sprintf(`NOT (%s)`, strings.Join(realArgs, " OR ")))
+						}
+
 						for _, v := range realVals {
 							values = append(values, v)
 						}
