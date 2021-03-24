@@ -46,7 +46,8 @@ func newCodec() *codecModule {
 	}
 	codec.digitCoder = coder
 
-	codec.jsonCodec = jsoniter.ConfigCompatibleWithStandardLibrary
+	//codec.jsonCodec = jsoniter.ConfigCompatibleWithStandardLibrary
+	codec.jsonCodec = jsoniter.ConfigFastest
 
 	return codec
 }
