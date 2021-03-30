@@ -182,7 +182,7 @@ func (module *busModule) Plan(name string, config Plan, overrides ...bool) {
 		if override {
 			module.plans[key] = config
 		} else {
-			if _, ok := module.events[key]; ok == false {
+			if _, ok := module.plans[key]; ok == false {
 				module.plans[key] = config
 			}
 		}
@@ -285,10 +285,8 @@ func (module *busModule) initing() {
 		for i, crontab := range config.Times {
 			timeName := fmt.Sprintf("%s.%v", key, i)
 			id, err := module.cron.AddFunc(crontab, func() {
-
 				//超时，那边要判断是不是主节点
 				module.planning(name, config)
-
 			}, &cron.Extra{Name: timeName, RunForce: false, TimeOut: 5})
 
 			if err != nil {
